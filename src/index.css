@@ -634,3 +634,54 @@
     .auth-panel { padding: 1.5rem 1.25rem; }
   }
 }
+
+/* ==== Ultimate Team card skins ==== */
+.fut-card.tier-bronze { background: repeating-linear-gradient(112deg, rgba(255,255,255,.055) 0 2px, transparent 2px 7px), linear-gradient(150deg,#c98d56 0%,#9a6236 46%,#57371d 100%); border-color:#d9a06a; box-shadow: inset 0 0 0 1px rgba(255,219,180,.28), 0 12px 24px rgba(0,0,0,.4); }
+.fut-card.tier-silver { background: repeating-linear-gradient(105deg, rgba(255,255,255,.16) 0 1px, transparent 1px 5px), linear-gradient(150deg,#f8fafc 0%,#c3cbd9 40%,#7c8798 72%,#46505f 100%); border-color:#eef2f7; box-shadow: inset 0 0 0 1px rgba(255,255,255,.55), 0 12px 26px rgba(0,0,0,.38); }
+.fut-card.tier-gold { background: radial-gradient(circle at 18% 10%, rgba(255,255,255,.55), transparent 32%), linear-gradient(150deg,#ffeaa0 0%,#f5c451 42%,#b47a12 74%,#6b4404 100%); border-color:#ffe9a3; box-shadow: inset 0 0 0 1px rgba(255,255,255,.5), 0 0 22px rgba(245,196,81,.32), 0 14px 28px rgba(0,0,0,.4); }
+.fut-card.tier-star { color:#f8fafc; background: radial-gradient(circle at 20% 8%, rgba(255,255,255,.4), transparent 34%), linear-gradient(150deg,#e9c6ff 0%,#b45cf5 38%,#6d28d9 72%,#2a0a4a 100%); border-color:#d98cff; box-shadow: inset 0 0 0 1px rgba(255,255,255,.4), 0 0 26px rgba(168,85,247,.55), 0 14px 30px rgba(0,0,0,.45); animation: starAura 2.6s ease-in-out infinite; }
+.fut-card.tier-icon { color:#f8fafc; background: radial-gradient(circle at 50% -10%, rgba(255,255,255,.55), transparent 42%), linear-gradient(150deg,#a5f3fc 0%,#22d3ee 24%,#0e7490 45%,#f5c451 68%,#0b4f5c 100%); border-color:#a5f3fc; box-shadow: inset 0 0 0 1px rgba(255,255,255,.55), 0 0 18px rgba(85,232,239,.6), 0 0 46px rgba(245,196,81,.35), 0 16px 32px rgba(0,0,0,.5); animation: iconHolo 5s ease-in-out infinite; }
+.fut-card.tier-star .card-portrait, .fut-card.tier-icon .card-portrait { border-color: rgba(255,255,255,.6); background: rgba(2,6,23,.3); }
+.fut-card.tier-star .card-stats, .fut-card.tier-icon .card-stats { border-color: rgba(255,255,255,.25); }
+.fut-card.tier-icon::before { border-color: rgba(255,255,255,.6); }
+.fut-card.tier-icon .card-top::after { content:""; position:absolute; left:50%; top:-6px; width:34px; height:10px; transform:translateX(-50%); background:linear-gradient(90deg,#f5c451,#fff6c9,#f5c451); clip-path:polygon(0 100%,12% 0,50% 42%,88% 0,100% 100%); opacity:.9; }
+.fut-card.maxed { box-shadow: 0 0 0 2px rgba(255,255,255,.5), 0 0 34px 6px rgba(250,204,21,.55), 0 0 70px rgba(85,232,239,.4) !important; }
+.fut-card.maxed::after { background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,.85) 50%, transparent 70%); animation: cardShimmer 2.4s linear infinite; }
+@keyframes starAura { 0%,100% { box-shadow: inset 0 0 0 1px rgba(255,255,255,.4), 0 0 20px rgba(168,85,247,.4), 0 14px 30px rgba(0,0,0,.45); } 50% { box-shadow: inset 0 0 0 1px rgba(255,255,255,.55), 0 0 38px rgba(217,140,255,.75), 0 14px 30px rgba(0,0,0,.45); } }
+@keyframes iconHolo { 0%,100% { filter: hue-rotate(0); } 50% { filter: hue-rotate(18deg) saturate(1.15); } }
+@keyframes cardShimmer { 0% { transform: translateX(-140%) rotate(45deg); } 100% { transform: translateX(240%) rotate(45deg); } }
+
+/* ==== My Club filter pills & quick sell ==== */
+.pill-row { display:flex; flex-wrap:wrap; align-items:center; gap:.35rem; }
+.filter-pill { display:inline-flex; align-items:center; gap:.3rem; border-radius:999px; border:1px solid rgba(148,163,184,.22); background:rgba(30,41,59,.6); padding:.34rem .62rem; font-size:10px; font-weight:800; letter-spacing:.03em; color:#94a3b8; transition:all .15s; }
+.filter-pill span { font-size:9px; color:#64748b; }
+.filter-pill:hover { border-color:rgba(251,146,60,.55); color:#fdba74; }
+.filter-pill.active { border-color:#fb923c; background:rgba(251,146,60,.16); color:#fdba74; box-shadow:0 0 12px rgba(251,146,60,.18); }
+.filter-pill.active span { color:#fdba74; }
+.confirm-modal { width:100%; max-width:420px; border-radius:1rem; border:1px solid #334155; background:#172231; padding:1.6rem; box-shadow:0 30px 70px rgba(0,0,0,.6); }
+.confirm-modal h3 { margin-top:.45rem; font-size:1.1rem; font-weight:900; color:#fff; }
+.confirm-modal p { margin-top:.5rem; font-size:.75rem; line-height:1.15rem; color:#94a3b8; }
+.confirm-value { display:block; margin-top:1rem; font-size:1.6rem; font-weight:900; color:#fdba74; }
+.confirm-actions { display:flex; justify-content:flex-end; gap:.5rem; margin-top:1.25rem; }
+
+/* ==== Pack walkout reveal ==== */
+.walkout { position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1rem; width:100%; max-width:560px; min-height:520px; overflow:hidden; border-radius:1.5rem; border:2px solid #334155; background:radial-gradient(circle at 50% 26%, rgba(251,146,60,.14), transparent 58%), #0b1220; text-align:center; padding:2rem; }
+.walkout.tier-star { border-color:#a855f7; box-shadow:0 0 70px rgba(168,85,247,.4); }
+.walkout.tier-icon { border-color:#55e8ef; box-shadow:0 0 80px rgba(85,232,239,.35), inset 0 0 60px rgba(245,196,81,.12); }
+.walkout-flash { position:absolute; inset:0; background:radial-gradient(circle, rgba(255,255,255,.3), transparent 62%); animation:walkFlash .9s ease-out forwards; pointer-events:none; }
+.walkout-tier { position:absolute; top:1.4rem; left:0; right:0; font-size:9px; font-weight:800; letter-spacing:.4em; color:#94a3b8; }
+.walkout-skip { position:absolute; right:1.1rem; top:1.1rem; z-index:5; display:inline-flex; align-items:center; gap:.2rem; border-radius:999px; border:1px solid rgba(148,163,184,.25); background:rgba(30,41,59,.7); padding:.3rem .6rem; font-size:9px; font-weight:800; color:#cbd5e1; }
+.walkout-flag { font-size:6rem; line-height:1; filter:drop-shadow(0 0 26px rgba(255,255,255,.35)); animation:walkPop .45s ease-out; }
+.walkout-role { display:flex; flex-direction:column; align-items:center; gap:.6rem; font-size:2.2rem; font-weight:900; letter-spacing:.12em; color:#fdba74; text-transform:uppercase; animation:walkPop .45s ease-out; }
+.walkout-team { font-size:2rem; font-weight:900; color:#fff; text-shadow:0 0 24px rgba(251,146,60,.45); animation:walkPop .45s ease-out; }
+.walkout-card { animation:walkPop .5s ease-out; }
+.walkout-progress { position:absolute; bottom:1.3rem; display:flex; gap:.35rem; }
+.walkout-progress i { width:30px; height:3px; border-radius:2px; background:#1e293b; }
+.walkout-progress i.on { background:#fb923c; box-shadow:0 0 10px rgba(251,146,60,.7); }
+@keyframes walkFlash { from { opacity:1; } to { opacity:0; } }
+@keyframes walkPop { from { opacity:0; transform:scale(.7); } to { opacity:1; transform:scale(1); } }
+
+/* ==== Division standings modal header spacing ==== */
+.division-modal-head { padding-right:3.8rem; }
+.overlay-close { z-index:4; }
+@media (max-width:640px) { .division-modal-head { padding-right:3.2rem; padding-top:1.2rem; } }

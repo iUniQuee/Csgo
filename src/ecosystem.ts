@@ -38,12 +38,12 @@ export type EcoState = {
 export type OvrRange = { min: number; max: number };
 
 export const ECO_STORAGE_KEY = 'cs2-ecosystem';
-const ECO_STATE_VERSION = 4;
+const ECO_STATE_VERSION = 5;
 export const ECO_DIVISIONS = 15;
 export const ECO_TEAMS_PER_DIVISION = 16;
 
 /* ------------------------------------------------------------------ */
-/* Real world database: 239 clubs x exact 5-man roster (Nov 2026)      */
+/* Real world database: 240 clubs x exact 5-man roster (Nov 2026)      */
 /* Div 11-15 world elite, Div 6-10 silver tier, Div 1-5 bronze tier.   */
 /* ------------------------------------------------------------------ */
 
@@ -297,6 +297,7 @@ export const BRONZE_DB: Record<string, WorldEntry[]> = {
   'Corinthians Esports': [['arT', 'IGL', 56, 'BR'], ['latto', 'AWPer', 55, 'BR'], ['dumau', 'Rifler', 55, 'BR'], ['n1ssim', 'Entry', 55, 'BR'], ['try', 'Support', 55, 'BR']],
   Fuscão: [['felps', 'IGL', 55, 'BR'], ['HEN1', 'AWPer', 55, 'BR'], ['LUCAS1', 'Rifler', 55, 'BR'], ['kNgV-', 'Entry', 55, 'BR'], ['bit', 'Support', 55, 'BR']],
   'Flamengo Esports': [['coldzera', 'IGL', 56, 'BR'], ['pancc', 'AWPer', 55, 'BR'], ['WOOD7', 'Rifler', 55, 'BR'], ['Tuurtle', 'Entry', 55, 'BR'], ['matios', 'Support', 55, 'BR']],
+  INTZ: [['vsm', 'IGL', 60, 'BR'], ['ryot', 'AWPer', 59, 'BR'], ['pley', 'Rifler', 58, 'BR'], ['chucky', 'Entry', 57, 'BR'], ['brn', 'Support', 56, 'BR']],
 };
 
 export const WORLD_TEAMS: string[] = Object.keys(WORLD_DB);
@@ -327,10 +328,8 @@ const byAverage = (teams: string[]): string[] => [...teams].sort(
   (a, b) => worldAvgOvr(b) - worldAvgOvr(a) || a.localeCompare(b),
 );
 
-/** Every club of each tier, strongest five-man average first. */
-const WORLD_BY_OVR: string[] = byAverage(WORLD_TEAMS);
-const SILVER_BY_OVR: string[] = byAverage(SILVER_TEAMS);
-const BRONZE_BY_OVR: string[] = byAverage(BRONZE_TEAMS);
+/** All 240 clubs on one ladder: #1 highest five-man average to #240 lowest. */
+const ALL_BY_OVR: string[] = byAverage(ALL_TEAMS);
 
 /**
  * OVR window of each division (index 0 = Bronze / Division 1 ... 14 = Global Elite).
@@ -343,35 +342,23 @@ export const DIVISION_BANDS: [number, number][] = (() => {
     { length: ECO_DIVISIONS },
     () => [55, 56] as [number, number],
   );
-  const fill = (sorted: string[], lowestDivision: number): void => {
-    for (let group = 0; group < 5; group += 1) {
-      const division = lowestDivision + 4 - group;
-      const averages = sorted
-        .slice(group * ECO_TEAMS_PER_DIVISION, (group + 1) * ECO_TEAMS_PER_DIVISION)
-        .map(worldAvgOvr);
-      bands[division] = [Math.min(...averages), Math.max(...averages)];
-    }
-  };
-  fill(BRONZE_BY_OVR, 0);
-  fill(SILVER_BY_OVR, 5);
-  fill(WORLD_BY_OVR, 10);
+  for (let group = 0; group < ECO_DIVISIONS; group += 1) {
+    const division = ECO_DIVISIONS - 1 - group;
+    const averages = ALL_BY_OVR
+      .slice(group * ECO_TEAMS_PER_DIVISION, (group + 1) * ECO_TEAMS_PER_DIVISION)
+      .map(worldAvgOvr);
+    bands[division] = [Math.min(...averages), Math.max(...averages)];
+  }
   return bands;
 })();
 
 /** Names grouped by division index (0 = Bronze/Division 1 ... 14 = Global Elite). */
 const DIVISION_POOLS: string[][] = (() => {
   const pools: string[][] = Array.from({ length: ECO_DIVISIONS }, () => [] as string[]);
-  const fill = (sorted: string[], lowestDivision: number): void => {
-    for (let group = 0; group < 5; group += 1) {
-      const division = lowestDivision + 4 - group;
-      pools[division] = sorted.slice(group * ECO_TEAMS_PER_DIVISION, (group + 1) * ECO_TEAMS_PER_DIVISION);
-    }
-  };
-  fill(BRONZE_BY_OVR, 0);
-  fill(SILVER_BY_OVR, 5);
-  fill(WORLD_BY_OVR, 10);
-  // Division 1 fields 15 AI clubs: the player's own club holds the 16th seat.
-  pools[0] = pools[0].slice(0, ECO_TEAMS_PER_DIVISION - 1);
+  for (let group = 0; group < ECO_DIVISIONS; group += 1) {
+    const division = ECO_DIVISIONS - 1 - group;
+    pools[division] = ALL_BY_OVR.slice(group * ECO_TEAMS_PER_DIVISION, (group + 1) * ECO_TEAMS_PER_DIVISION);
+  }
   return pools;
 })();
 
@@ -429,10 +416,10 @@ const monthKey = (now: number): string => {
 /* ------------------------------------------------------------------ */
 
 export const teamTier = (ovr: number): 'Icon' | 'Star' | 'Gold' | 'Silver' | 'Bronze' => {
-  if (ovr >= 93) return 'Icon';
-  if (ovr >= 86) return 'Star';
-  if (ovr >= 78) return 'Gold';
-  if (ovr >= 68) return 'Silver';
+  if (ovr >= 90) return 'Icon';
+  if (ovr >= 85) return 'Star';
+  if (ovr >= 75) return 'Gold';
+  if (ovr >= 65) return 'Silver';
   return 'Bronze';
 };
 
@@ -531,7 +518,7 @@ export const createEcoState = (ranges: OvrRange[], now = Date.now()): EcoState =
 });
 
 const validTeams = (teams: EcoTeam[]): boolean => {
-  if (!Array.isArray(teams) || teams.length !== ECO_DIVISIONS * ECO_TEAMS_PER_DIVISION - 1) return false;
+  if (!Array.isArray(teams) || teams.length !== ECO_DIVISIONS * ECO_TEAMS_PER_DIVISION) return false;
   return teams.every((team) => typeof team.name === 'string' && team.division >= 0 && team.division < ECO_DIVISIONS);
 };
 
