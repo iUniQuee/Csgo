@@ -196,7 +196,7 @@ function divisionBots(divisionIndex: number): BotSeed[] {
 function createLeagueTeams(divisionIndex: number): LeagueTeam[] {
   const bots = divisionBots(divisionIndex);
   const rivals = buildRivals(divisionIndex);
-  const user = createHumanTeam({ id: 'user', name: 'YOUR CLUB', manager: 'YOU', kind: 'player' });
+  const user = createHumanTeam({ id: 'user', name: 'MonQue', manager: 'YOU', kind: 'player' });
   const room = createZone({ division: divisionIndex, bots, humans: rivals });
   const join = joinZone(room, user);
   return (join ? join.teams : room).slice(0, ZONE_SIZE);
