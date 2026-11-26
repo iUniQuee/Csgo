@@ -846,11 +846,12 @@ function App() {
     const zone = league.zone ?? 0;
     const zoneCount = league.zoneCount ?? 1;
     const userRow = league.teams.find((team) => team.id === 'user');
+    const userTeamName = useMemo(() => (profile.teamName?.trim() || 'YOUR CLUB'), [profile.teamName]);
     const squadPayload: SquadCard[] = squadCards.map((card) => ({ name: card.name, role: card.role, level: card.level, ovr: cardPower(card).ovr, team: card.team, country: card.country }));
     void leagueService.ensureManager({
       id: 'user',
       manager: profile.nickname,
-      teamName: 'YOUR CLUB',
+      teamName: userTeamName,
       avatar: profile.avatar,
       perk: profile.perk,
       perk2: profile.perk2,
@@ -1207,7 +1208,7 @@ function ArenaPage({ teamRating, chemistry, perks, league, setLeague, onWin, squ
   const [scrimOpponent, setScrimOpponent] = useState<{ id: string; name: string; ovr: number; reward: number; color: string } | null>(null);
   const [dayResult, setDayResult] = useState<LeagueDayResult | null>(null);
   const [now, setNow] = useState(() => Date.now());
-  const [showRoadmap, setShowRoadmap] = useState(false);
+    const [showRoadmap, setShowRoadmap] = useState(false);
   const [browseDivision, setBrowseDivision] = useState<number | null>(null);
   const [scoutTeam, setScoutTeam] = useState<EcoTeam | null>(null);
   const [managerTeam, setManagerTeam] = useState<LeagueTeam | null>(null);
