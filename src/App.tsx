@@ -16,7 +16,8 @@ import {
   type SquadCard,
 } from './utils/matchmakingEngine';
 import { leagueService } from './services/leagueService';
-import { advanceEcoState, DIVISION_BANDS, ecoTeamById, ecoTeamsInDivision, readEcoState, resetEcoState, saveEcoState, teamAvgOvr, teamRoster, teamTier, WORLD_PLAYERS, type EcoState, type EcoTeam, type OvrRange } from './ecosystem';
+import { authErrorMessage, authService, type AuthSession } from './services/authService';
+import { advanceEcoState, DIVISION_BANDS, ecoTeamById, ecoTeamsInDivision, readEcoState, saveEcoState, teamAvgOvr, teamRoster, teamTier, WORLD_PLAYERS, type EcoState, type EcoTeam, type OvrRange } from './ecosystem';
 import {
   BadgeCheck,
   Box,
@@ -35,6 +36,8 @@ import {
   LayoutGrid,
   Lock,
   LockKeyhole,
+  LogOut,
+  Mail,
   Medal,
   PawPrint,
   Pencil,
@@ -524,6 +527,7 @@ const VIP_DISCOUNT = 0.15;
 const PACK_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 const PITY_LIMIT = 30;
 const PITY_STORAGE_KEY = 'cs2-packs-without-icon';
+const SAVE_KEY = 'cs2-ultimate-team-save';
 const readIconPity = (): number => {
   try {
     const raw = Number(localStorage.getItem(PITY_STORAGE_KEY));
@@ -590,6 +594,8 @@ const generatePack = (id: PackId, forceIcon = false): PackCard[] => {
 
 function App() {
   const [hydrated, setHydrated] = useState(false);
+  const [session, setSession] = useState<AuthSession | null>(null);
+  const [authReady, setAuthReady] = useState(false);
   const [profile, setProfile] = useState<Profile>(createProfile);
   const [coins, setCoins] = useState(2500);
   const [owned, setOwned] = useState<OwnedCard[]>([]);
@@ -618,9 +624,31 @@ function App() {
   questsRef.current = quests;
   const teamRatingRef = useRef(0);
 
+  // Sign-in gate: restore the Supabase (or local) session before anything else loads.
   useEffect(() => {
+    let active = true;
+    void authService.getSession().then((next) => {
+      if (!active) return;
+      setSession(next);
+      setAuthReady(true);
+    });
+    const unsubscribe = authService.onChange((next) => {
+      setSession(next);
+      setAuthReady(true);
+    });
+    return () => { active = false; unsubscribe(); };
+  }, []);
+
+  // Each signed-in manager gets their own club save, with the legacy single save migrated.
+  useEffect(() => {
+    resetClub();
+    if (!session) { setHydrated(false); return; }
     const now = Date.now();
-    const saved = localStorage.getItem('cs2-ultimate-team-save');
+    const perUserSave = localStorage.getItem(`${SAVE_KEY}:${session.userId}`);
+    const legacySave = perUserSave ? null : localStorage.getItem(SAVE_KEY);
+    const saved = perUserSave ?? legacySave;
+    // The pre-auth save belongs to whoever signs in first; later accounts start fresh.
+    if (legacySave) localStorage.removeItem(SAVE_KEY);
     const ecoLoaded = readEcoState(ecoRanges, now);
     ecoSnapshot = ecoLoaded.teams;
     ecoRef.current = ecoLoaded;
@@ -677,13 +705,13 @@ function App() {
     setQuests(loadedQuests);
     setProfile(data.profile); setCoins(nextCoins); setOwned(nextOwned); setSquad(data.squad); setPage(data.page); setNewCardIds(freshIds); setManagerXp(nextXp); setRewardedLevel(data.rewardedLevel ?? managerLevel(savedXp)); setDailyClaimAt(data.dailyClaimAt ?? 0); setLeague(nextLeague); setLastActiveAt(now);
     setHydrated(true);
-  }, []);
+  }, [session?.userId]);
 
   useEffect(() => {
-    if (!hydrated || showCreation) return;
+    if (!hydrated || showCreation || !session) return;
     const data: SaveData = { profile, coins, owned, squad, page, newCardIds, managerXp, league, dailyClaimAt, rewardedLevel, lastActiveAt, quests };
-    localStorage.setItem('cs2-ultimate-team-save', JSON.stringify(data));
-  }, [hydrated, showCreation, profile, coins, owned, squad, page, newCardIds, managerXp, league, dailyClaimAt, rewardedLevel, lastActiveAt, quests]);
+    localStorage.setItem(`${SAVE_KEY}:${session.userId}`, JSON.stringify(data));
+  }, [hydrated, showCreation, session?.userId, profile, coins, owned, squad, page, newCardIds, managerXp, league, dailyClaimAt, rewardedLevel, lastActiveAt, quests]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -828,9 +856,24 @@ function App() {
     const starters = createStarterCards();
     const nextSquad = { ...emptySquad };
     starters.forEach((card) => { nextSquad[card.role] = card.instanceId; });
-    setProfile(nextProfile); setOwned(starters); setSquad(nextSquad); setShowCreation(false); setToast('Starter squad assembled. Welcome to Ultimate Team.');
+    const freshLeague = createSeason(0, 1, []);
+    leagueRef.current = freshLeague;
+    setLeague(freshLeague); setCoins(2500); setProfile(nextProfile); setOwned(starters); setSquad(nextSquad); setShowCreation(false); setToast('Club created. You are in Division 1 · Zone A with 2,500 coins.');
   };
-  const resetProfile = (): void => { localStorage.removeItem('cs2-ultimate-team-save'); localStorage.removeItem(PITY_STORAGE_KEY); const freshEco = resetEcoState(ecoRanges); ecoSnapshot = freshEco.teams; ecoRef.current = freshEco; setEcosystem(freshEco); setIconPity(0); setProfile(createProfile()); setCoins(2500); setOwned([]); setSquad(emptySquad); setNewCardIds([]); setManagerXp(0); setRewardedLevel(1); setDailyClaimAt(0); setLevelUp(null); setLeague(createSeason(0, 1, [])); setPage('squad'); setShowCreation(true); setPack(null); setRecap(null); setSeasonNotice(null); setLastActiveAt(Date.now()); const freshQuests = createQuestState(); questsRef.current = freshQuests; setQuests(freshQuests); const freshLeague = createSeason(0, 1, []); leagueRef.current = freshLeague; setLeague(freshLeague); };
+  /** Clears the loaded club between accounts; world state (ecosystem, pity) stays global. */
+  function resetClub(): void {
+    const freshLeague = createSeason(0, 1, []);
+    const freshQuests = createQuestState();
+    leagueRef.current = freshLeague;
+    questsRef.current = freshQuests;
+    setProfile(createProfile()); setCoins(2500); setOwned([]); setSquad(emptySquad); setPage('squad'); setShowCreation(false); setNewCardIds([]); setManagerXp(0); setRewardedLevel(managerLevel(0)); setDailyClaimAt(0); setLevelUp(null); setLeague(freshLeague); setQuests(freshQuests); setPack(null); setRecap(null); setSeasonNotice(null); setLastActiveAt(Date.now());
+  }
+  const handleLogout = (): void => {
+    setSession(null);
+    setHydrated(false);
+    resetClub();
+    void authService.signOut().catch(() => { /* the local session is already cleared */ });
+  };
   const bumpQuest = (id: QuestId): void => {
     const current = questsRef.current;
     const today = dayKeyOf(Date.now());
@@ -923,11 +966,13 @@ function App() {
   const awardArenaWin = (reward: number, xp: number, message?: string): void => { setCoins((current) => current + reward); setManagerXp((current) => current + xp); setToast(message ?? `Victory reward: +${reward.toLocaleString()} coins · +${xp} XP`); };
   useEffect(() => { if (hydrated && page === 'squad') bumpQuest('squad'); }, [hydrated, page]);
 
-  if (!hydrated) return null;
+  if (!authReady) return <div className="auth-boot"><div className="auth-spinner" /><span>LOADING ULTIMATE TEAM</span></div>;
+  if (!session) return <AuthScreen onAuthenticated={setSession} />;
+  if (!hydrated) return <div className="auth-boot"><div className="auth-spinner" /><span>LOADING YOUR CLUB</span></div>;
   return <div className="ultimate-app min-h-screen bg-[#0f172a] text-slate-200">
     <Sidebar page={page} setPage={setPage} profile={profile} league={league} />
     <main className="ultimate-main">
-      <Header profile={profile} coins={coins} onReset={resetProfile} />
+      <Header profile={profile} coins={coins} onLogout={handleLogout} />
       <div className="ultimate-content">
         {page === 'squad' && <SquadPage owned={owned} squad={squad} setSquad={updateSquad} teamRating={teamRating} chemistry={chemistry} profile={profile} onGoClub={() => setPage('club')} />}
         {page === 'store' && <StorePage coins={coins} level={level} dailyReadyAt={dailyReadyAt} iconPity={iconPity} onBuyPack={purchasePack} />}
@@ -959,8 +1004,81 @@ function Sidebar({ page, setPage, profile, league }: { page: Page; setPage: (pag
   return <aside className="ut-sidebar"><div className="ut-logo"><div className="ut-logo-icon"><Crosshair size={19} /></div><div><strong>CS2</strong><span>ULTIMATE TEAM</span></div></div><div className="manager-mini"><div className="avatar-circle" style={{ backgroundColor: avatarDetails[profile.avatar].color }}>{avatarDetails[profile.avatar].icon}</div><div><strong>{profile.nickname || 'New Manager'}</strong><span>{profile.teamName}</span></div></div><div className="sidebar-label">MAIN MENU</div><nav>{items.map(({ id, label, icon: Icon, note }) => <button key={id} className={`ut-nav ${page === id ? 'active' : ''}`} onClick={() => setPage(id)}><Icon size={17} /><span>{label}</span><small>{note}</small></button>)}</nav><div className="sidebar-bottom"><div className="season-card"><Sparkles size={15} className="text-orange-400" /><div><strong>{seasonLabel(league.season)}</strong><span>Road to the Major</span></div></div><div className="season-timer"><small>ENDS IN</small><strong>{seasonCountdown(now)}</strong></div><div className="sidebar-version">ULTIMATE TEAM · 2026</div></div></aside>;
 }
 
-function Header({ profile, coins, onReset }: { profile: Profile; coins: number; onReset: () => void }) {
-  return <header className="ut-header"><div className="mobile-title">CS2 <span>ULTIMATE TEAM</span></div><div className="header-spacer" /><div className="header-manager"><div className="avatar-circle small" style={{ backgroundColor: avatarDetails[profile.avatar].color }}>{avatarDetails[profile.avatar].icon}</div><div className="header-manager-name"><span>MANAGER</span><strong>{profile.nickname || 'New Manager'}</strong></div></div><div className="header-team"><span>TEAM</span><strong>{profile.teamName}</strong></div><div className="coin-balance"><Coins size={16} /><div><span>COINS</span><strong>{coins.toLocaleString()}</strong></div></div><button className="reset-profile" onClick={onReset}><RotateCcw size={14} /> Reset Profile</button></header>;
+function Header({ profile, coins, onLogout }: { profile: Profile; coins: number; onLogout: () => void }) {
+  return <header className="ut-header"><div className="mobile-title">CS2 <span>ULTIMATE TEAM</span></div><div className="header-spacer" /><div className="header-manager"><div className="avatar-circle small" style={{ backgroundColor: avatarDetails[profile.avatar].color }}>{avatarDetails[profile.avatar].icon}</div><div className="header-manager-name"><span>MANAGER</span><strong>{profile.nickname || 'New Manager'}</strong></div></div><div className="header-team"><span>TEAM</span><strong>{profile.teamName}</strong></div><div className="coin-balance"><Coins size={16} /><div><span>COINS</span><strong>{coins.toLocaleString()}</strong></div></div><button className="logout-profile" onClick={onLogout}><LogOut size={14} /> Log Out</button></header>;
+}
+
+function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSession) => void }) {
+  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const switchMode = (next: 'signin' | 'signup'): void => {
+    if (busy || next === mode) return;
+    setMode(next); setError(''); setNotice('');
+  };
+
+  const submit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
+    event.preventDefault();
+    if (busy) return;
+    setBusy(true); setError(''); setNotice('');
+    try {
+      if (mode === 'signup') {
+        const result = await authService.signUp(email, password);
+        if (result.session) onAuthenticated(result.session);
+        else setNotice('Account created. Confirm your email address, then sign in.');
+      } else {
+        onAuthenticated(await authService.signIn(email, password));
+      }
+    } catch (err) {
+      setError(authErrorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const google = async (): Promise<void> => {
+    if (busy) return;
+    setBusy(true); setError(''); setNotice('');
+    try {
+      await authService.signInWithGoogle();
+    } catch (err) {
+      setError(authErrorMessage(err));
+      setBusy(false);
+    }
+  };
+
+  return <div className="auth-gate">
+    <div className="auth-glow" />
+    <div className="auth-panel">
+      <div className="auth-brand"><div className="auth-brand-mark"><Crosshair size={22} /></div><div><strong>CS2</strong><span>ULTIMATE TEAM</span></div></div>
+      <div className="auth-heading">
+        <div className="eyebrow orange">{mode === 'signin' ? 'MANAGER LOGIN' : 'NEW MANAGER'}</div>
+        <h1>{mode === 'signin' ? 'Welcome back, manager.' : 'Build your legacy.'}</h1>
+        <p>{mode === 'signin' ? 'Sign in to load your club, squad and league standing.' : 'Create an account to claim your club, starter five and 2,500 coins.'}</p>
+      </div>
+      <div className="auth-tabs" role="tablist">
+        <button type="button" role="tab" aria-selected={mode === 'signin'} className={mode === 'signin' ? 'active' : ''} onClick={() => switchMode('signin')}>Sign In</button>
+        <button type="button" role="tab" aria-selected={mode === 'signup'} className={mode === 'signup' ? 'active' : ''} onClick={() => switchMode('signup')}>Create Account</button>
+      </div>
+      <form className="auth-form" onSubmit={submit}>
+        <label className="auth-field"><span>EMAIL</span><div><Mail size={15} /><input type="email" autoComplete="email" required value={email} placeholder="manager@club.gg" onChange={(event) => setEmail(event.target.value)} /></div></label>
+        <label className="auth-field"><span>PASSWORD</span><div><LockKeyhole size={15} /><input type="password" autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} required minLength={6} value={password} placeholder="At least 6 characters" onChange={(event) => setPassword(event.target.value)} /></div></label>
+        {error && <div className="auth-message error" role="alert">{error}</div>}
+        {notice && <div className="auth-message success" role="status">{notice}</div>}
+        <button type="submit" className="auth-submit" disabled={busy}>{busy ? <><span className="auth-spinner small" /> WORKING…</> : <>{mode === 'signin' ? 'Sign In' : 'Create Account'} <ChevronRight size={16} /></>}</button>
+      </form>
+      <div className="auth-divider"><span>OR</span></div>
+      <button type="button" className="auth-google" onClick={google} disabled={busy}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.4h6.4a5.5 5.5 0 0 1-2.4 3.6v3h3.8c2.2-2 3.7-5 3.7-8.7Z" /><path fill="#34A853" d="M12 24c3.2 0 5.9-1.1 7.8-2.9l-3.8-3c-1.1.7-2.4 1.2-4 1.2a7 7 0 0 1-6.6-4.8h-3.9v3.1A11.7 11.7 0 0 0 12 24Z" /><path fill="#FBBC05" d="M5.4 14.5a7 7 0 0 1 0-4.9V6.5h-3.9a11.7 11.7 0 0 0 0 10.5l3.9-2.5Z" /><path fill="#EA4335" d="M12 4.8c1.8 0 3.3.6 4.5 1.7l3.3-3.3A11.5 11.5 0 0 0 12 0 11.7 11.7 0 0 0 1.5 6.5l3.9 3.1A7 7 0 0 1 12 4.8Z" /></svg>
+        Continue with Google
+      </button>
+      <div className="auth-foot">{authService.isRemote ? 'Secured by Supabase Auth' : 'Local preview mode · accounts stay on this device until Supabase keys are added'}</div>
+    </div>
+  </div>;
 }
 
 function SquadPage({ owned, squad, setSquad, teamRating, chemistry, profile, onGoClub }: { owned: OwnedCard[]; squad: Record<Role, string>; setSquad: (squad: Record<Role, string>) => void; teamRating: number; chemistry: number; profile: Profile; onGoClub: () => void }) {
