@@ -398,3 +398,27 @@
 
   @media (min-width: 700px) { .roster-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
   @media (max-width: 640px) { .division-modal, .roster-modal { padding: 1.2rem; } .division-modal-head { flex-direction: column; } }
+
+@layer components {
+  .zone-badges { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin-top: .45rem; }
+  .zone-badge { display: inline-flex; align-items: center; gap: .3rem; border-radius: .45rem; border: 1px solid rgba(249,115,22,.45); background: rgba(249,115,22,.12); padding: .2rem .55rem; font-size: .58rem; font-weight: 900; letter-spacing: .12em; color: #fdba74; text-transform: uppercase; }
+  .zone-badge.soft { border-color: rgba(148,163,184,.25); background: rgba(15,23,42,.55); color: #94a3b8; letter-spacing: .08em; }
+  .seat-badge { border-radius: .28rem; padding: .05rem .3rem; font-size: .44rem; font-style: normal; font-weight: 900; letter-spacing: .1em; line-height: 1.4; }
+  .seat-badge.player { background: rgba(34,211,238,.18); color: #67e8f9; box-shadow: inset 0 0 0 1px rgba(34,211,238,.35); }
+  .seat-badge.bot { background: rgba(148,163,184,.14); color: #94a3b8; box-shadow: inset 0 0 0 1px rgba(148,163,184,.22); }
+  .league-row.is-bot .league-club b, .league-row.is-bot .team-link { color: #94a3b8; }
+  .league-club .team-link { font-size: .72rem; font-weight: 700; color: #e2e8f0; text-align: left; }
+  .league-club .team-link:hover { color: #fdba74; text-decoration: underline; }
+  .seat-meta { display: flex !important; align-items: center; gap: .3rem; }
+  .seat-avatar { display: inline-flex; height: .95rem; width: .95rem; align-items: center; justify-content: center; border-radius: 999px; background: rgba(15,23,42,.75); font-size: .5rem; }
+  .manager-portrait { display: flex; height: 4.5rem; width: 4.5rem; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 1.2rem; border: 2px solid #0f172a; font-size: 1.7rem; font-weight: 900; color: #020617; box-shadow: 0 14px 30px -12px rgba(0,0,0,.8); }
+  .manager-perks { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .5rem; }
+  .perk-chip { display: inline-flex; align-items: center; gap: .25rem; border-radius: 999px; border: 1px solid rgba(249,115,22,.3); background: rgba(249,115,22,.08); padding: .18rem .5rem; font-size: .53rem; font-weight: 800; letter-spacing: .05em; color: #fdba74; text-transform: uppercase; }
+  .card-level-badge { position: absolute; right: .4rem; top: .4rem; z-index: 2; border-radius: .3rem; background: rgba(2,6,23,.8); padding: .1rem .3rem; font-size: .45rem; font-weight: 900; letter-spacing: .08em; color: #f5c451; }
+  .manager-modal .roster-avatar { display: flex; height: 2.4rem; width: 2.4rem; align-items: center; justify-content: center; margin-top: .35rem; border-radius: 999px; border: 1px solid rgba(148,163,184,.25); background: rgba(2,6,23,.6); font-size: .7rem; font-weight: 900; }
+  .manager-modal .roster-card { position: relative; }
+  .division-note { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: 1rem; border-top: 1px solid rgba(148,163,184,.15); padding-top: .7rem; }
+  .division-note span { border-radius: 999px; border: 1px solid rgba(148,163,184,.2); padding: .2rem .5rem; font-size: .55rem; font-weight: 800; letter-spacing: .05em; color: #94a3b8; text-transform: uppercase; }
+  .division-note .promotion { border-color: rgba(52,211,153,.35); color: #34d399; }
+  .division-note .relegation { border-color: rgba(248,113,113,.35); color: #f87171; }
+}

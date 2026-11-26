@@ -1,5 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { simulateRound, type Duelist, type FeedLine } from './matchEngine';
+import {
+  assignHumanToDivision,
+  createHumanTeam,
+  createZone,
+  divisionOutcome,
+  joinZone,
+  promotionSlots,
+  squadOvr,
+  teamKind,
+  ZONE_SIZE,
+  zoneLabel,
+  type BotSeed,
+  type LeagueTeam,
+  type SquadCard,
+} from './utils/matchmakingEngine';
+import { leagueService } from './services/leagueService';
 import { advanceEcoState, DIVISION_BANDS, ecoTeamById, ecoTeamsInDivision, readEcoState, resetEcoState, saveEcoState, teamAvgOvr, teamRoster, teamTier, WORLD_PLAYERS, type EcoState, type EcoTeam, type OvrRange } from './ecosystem';
 import {
   BadgeCheck,
@@ -71,12 +87,11 @@ type PackDefinition = { id: PackId; name: string; price: number; tier: Tier; art
 type SaveData = { profile: Profile; coins: number; owned: OwnedCard[]; squad: Record<Role, string>; page: Page; newCardIds: string[]; managerXp: number; league?: LeagueState; dailyClaimAt?: number; rewardedLevel?: number; lastActiveAt?: number; quests?: QuestState };
 type PackCard = OwnedCard & { revealed?: boolean };
 type Division = { name: string; ovr: number; ovrMin: number; ovrMax: number; reward: number };
-type LeagueTeam = { id: string; name: string; ovr: number; played: number; wins: number; losses: number; roundDiff: number; points: number };
 type LeagueTrophy = { season: number; division: string; place: number };
 type SeasonSummary = { season: number; divisionIndex: number; place: number; payout: number; promoted: boolean; relegated: boolean; trophy: boolean; teams: LeagueTeam[] };
 type LeagueMatchLog = { dayKey: string; slot: number; opponent: string; won: boolean; us: number; them: number; coins: number };
 type LeagueDayResult = { dayKey: string; division: number; rank: number; promoted: boolean; relegated: boolean; coins: number; wins: number; losses: number };
-type LeagueState = { division: number; season: number; monthKey?: string; matchday: number; teams: LeagueTeam[]; trophies: LeagueTrophy[]; summary: SeasonSummary | null; dayKey?: string; slot?: number; lastSlotAt?: number; dayResult?: LeagueDayResult | null };
+type LeagueState = { division: number; season: number; monthKey?: string; matchday: number; teams: LeagueTeam[]; trophies: LeagueTrophy[]; summary: SeasonSummary | null; dayKey?: string; slot?: number; lastSlotAt?: number; dayResult?: LeagueDayResult | null; zone?: number; zoneCount?: number };
 type QuestId = 'packs' | 'squad' | 'scrim';
 type QuestState = { day: string; packs: number; squad: number; scrim: number; claimed: QuestId[]; scrimWins: number };
 
@@ -120,20 +135,72 @@ const leagueMatchdays = 24;
 const ecoRanges: OvrRange[] = divisions.map((item) => ({ min: item.ovrMin, max: item.ovrMax }));
 let ecoSnapshot: EcoTeam[] = readEcoState(ecoRanges).teams;
 
-function createLeagueTeams(divisionIndex: number): LeagueTeam[] {
+const ecoIdOf = (team: LeagueTeam): string => team.id.replace(/-d\d+-z\d+$/, '');
+
+const RIVAL_HANDLES = ['V1PER', 'N0VA', 'KrypTic', 'Ashborne', 'Zephyr', 'Mako', 'Riven', 'Sable', 'Onyx', 'Halcyon', 'Draco', 'Echo', 'Frost', 'Kairo', 'Lumen', 'Nyx'];
+const RIVAL_CLUBS = ['Viper Syndicate', 'Nova Order', 'KrypTic Esports', 'Ashborne', 'Zephyr Nine', 'Mako Five', 'Riven Collective', 'Sable Legion', 'Onyx Pact', 'Team Halcyon', 'Draco Prime', 'Echo Division', 'Frostline', 'Kairo Club', 'Lumen 5', 'Nyx Union'];
+const RIVAL_AVATARS: string[] = ['falcon', 'wolf', 'visor', 'tiger', 'ghost', 'sentinel'];
+const RIVAL_PERKS: Perk[] = ['Tactical Genius', 'Aim Coach', 'Scout Master'];
+const ECO_ROLES = ['Entry', 'AWPer', 'IGL', 'Rifler', 'Support'];
+
+/**
+ * Deterministic real-manager rivals for the local fallback. They carry a 5-card squad,
+ * card levels and a manager perk so PLAYER badges and the Team Roster Modal are real.
+ * Once Supabase keys exist these are replaced by the live manager rows.
+ */
+function buildRivals(divisionIndex: number): LeagueTeam[] {
   const division = divisions[divisionIndex];
-  const base = { played: 0, wins: 0, losses: 0, roundDiff: 0, points: 0 };
+  const count = divisionIndex === 0 ? 5 : divisionIndex >= divisions.length - 2 ? 3 : 2;
+  const band = WORLD_PLAYERS.filter((player) => player.ovr >= division.ovrMin - 4 && player.ovr <= division.ovrMax + 4);
+  const pool = (band.length >= 10 ? band : WORLD_PLAYERS).slice().sort((a, b) => b.ovr - a.ovr);
+  return Array.from({ length: count }, (_, index) => {
+    const seed = divisionIndex * 41 + index * 7;
+    const squad: SquadCard[] = ECO_ROLES.map((role, slot) => {
+      const candidates = pool.filter((player) => player.role === role);
+      const player = candidates.length ? candidates[(seed + slot * 3) % candidates.length] : pool[(seed + slot) % pool.length];
+      return {
+        name: player.name,
+        role: role === 'Support' ? 'Lurker' : role,
+        level: 1 + ((index + slot) % 3),
+        ovr: player.ovr,
+        team: player.team,
+        country: player.country,
+      };
+    });
+    return createHumanTeam({
+      id: `human-d${divisionIndex + 1}-${index + 1}`,
+      name: RIVAL_CLUBS[(divisionIndex * 3 + index) % RIVAL_CLUBS.length],
+      manager: RIVAL_HANDLES[(divisionIndex * 5 + index) % RIVAL_HANDLES.length],
+      avatar: RIVAL_AVATARS[(divisionIndex + index) % RIVAL_AVATARS.length],
+      perk: RIVAL_PERKS[(divisionIndex + index) % RIVAL_PERKS.length],
+      perk2: index % 2 === 0 ? RIVAL_PERKS[(divisionIndex + index + 2) % RIVAL_PERKS.length] : undefined,
+      squad,
+    });
+  });
+}
+
+function divisionBots(divisionIndex: number): BotSeed[] {
+  const division = divisions[divisionIndex];
   const pool = ecoTeamsInDivision(ecoSnapshot, divisionIndex);
-  // Division 1 has 15 AI clubs + the user's custom team; every other division is a full 16-club table.
-  const roster: { id: string; name: string; ovr: number }[] = pool.length
-    ? pool.map((team) => ({ id: team.id, name: team.name, ovr: team.ovr }))
-    : Array.from({ length: divisionIndex === 0 ? 15 : 16 }, (_, index) => ({ id: `ai-${index}`, name: `AI Club ${index + 1}`, ovr: division.ovrMax }));
-  const ai: LeagueTeam[] = roster.map((team) => ({ ...base, ...team }));
-  return [{ ...base, id: 'user', name: 'YOUR CLUB', ovr: 0 }, ...ai];
+  if (pool.length) return pool.map((team) => ({ id: team.id, name: team.name, ovr: team.ovr }));
+  return Array.from({ length: ZONE_SIZE }, (_, index) => ({ id: `ai-d${divisionIndex + 1}-${index + 1}`, name: `AI Club ${index + 1}`, ovr: division.ovrMax }));
+}
+
+/**
+ * A fresh 16-seat room for a division. Real managers keep their seats, the lowest-ranked
+ * bot is replaced by the local player, and every other seat is an AI pro team.
+ */
+function createLeagueTeams(divisionIndex: number): LeagueTeam[] {
+  const bots = divisionBots(divisionIndex);
+  const rivals = buildRivals(divisionIndex);
+  const user = createHumanTeam({ id: 'user', name: 'YOUR CLUB', manager: 'YOU', kind: 'player' });
+  const room = createZone({ division: divisionIndex, bots, humans: rivals });
+  const join = joinZone(room, user);
+  return (join ? join.teams : room).slice(0, ZONE_SIZE);
 }
 
 function createSeason(divisionIndex: number, season: number, trophies: LeagueTrophy[], monthKey = monthKeyOf(Date.now())): LeagueState {
-  return { division: divisionIndex, season, monthKey, matchday: 0, teams: createLeagueTeams(divisionIndex), trophies, summary: null };
+  return { division: divisionIndex, season, monthKey, matchday: 0, teams: createLeagueTeams(divisionIndex), trophies, summary: null, zone: 0, zoneCount: 1 };
 }
 
 function sortLeague(teams: LeagueTeam[]): LeagueTeam[] {
@@ -278,18 +345,39 @@ function playLeagueSlot(league: LeagueState, teamRating: number): { league: Leag
 }
 
 function finalizeLeagueDay(league: LeagueState, teamRating: number): { league: LeagueState; dayResult: LeagueDayResult; coins: number } {
+  const zoneCount = league.zoneCount ?? 1;
   const table = sortLeague(league.teams.map((team) => (team.id === 'user' ? { ...team, ovr: teamRating || team.ovr } : team)));
   const userRow = table.find((team) => team.id === 'user');
   const rank = Math.max(1, table.findIndex((team) => team.id === 'user') + 1);
-  const promoted = rank <= 3 && league.division < divisions.length - 1;
-  const relegated = rank >= 14 && league.division > 0;
-  const nextDivision = promoted ? league.division + 1 : relegated ? league.division - 1 : league.division;
+  // 1 zone: ranks 1-3 promote. Split division: ranks 1-2 in every zone promote.
+  // Div 15 keeps exactly 3 seats open for the top 3 from Div 14, and the bottom 3 relegate.
+  const movement = divisionOutcome(league.division, rank, zoneCount);
+  const promoted = movement.promoted;
+  const relegated = movement.relegated;
+  const nextDivision = movement.next;
   const coins = promoted ? promotionCoins(nextDivision) : 0;
   const dayKey = league.dayKey ?? dayKeyOf(Date.now());
   const dayResult: LeagueDayResult = { dayKey, division: league.division, rank, promoted, relegated, coins, wins: userRow?.wins ?? 0, losses: userRow?.losses ?? 0 };
+  // Same division: wipe records for the new day, humans keep their Zone A seat.
+  // Moved up/down: rebuild the room, seeding real managers into Zone A before the bots.
   const teams = nextDivision === league.division ? league.teams.map(emptyTeamStats) : createLeagueTeams(nextDivision);
-  const trophies = rank <= 3 ? [...league.trophies, { season: league.season, division: divisions[league.division].name, place: rank }] : league.trophies;
-  return { league: { ...league, division: nextDivision, teams, trophies, slot: 0, matchday: 0, dayResult, dayKey: dayKeyAfter(dayKey) }, dayResult, coins };
+  const trophies = rank <= promotionSlots(league.division, zoneCount) ? [...league.trophies, { season: league.season, division: divisions[league.division].name, place: rank }] : league.trophies;
+  return {
+    league: {
+      ...league,
+      division: nextDivision,
+      teams,
+      trophies,
+      slot: 0,
+      matchday: 0,
+      dayResult,
+      dayKey: dayKeyAfter(dayKey),
+      zone: nextDivision === league.division ? league.zone ?? 0 : 0,
+      zoneCount: nextDivision === league.division ? zoneCount : 1,
+    },
+    dayResult,
+    coins,
+  };
 }
 
 function advanceLeague(league: LeagueState, now: number, teamRating: number): { league: LeagueState; matches: LeagueMatchLog[]; coins: number; dayResult: LeagueDayResult | null } {
@@ -546,7 +634,13 @@ function App() {
     const freshIds: string[] = [...(data.newCardIds ?? [])];
     let nextLeague: LeagueState;
     if (data.league && (data.league.teams?.length ?? 0) >= 16) {
-      nextLeague = { ...data.league, monthKey: data.league.monthKey ?? monthKeyOf(now) };
+      // Old saves predate zones: stamp team kinds, keep exactly 16 seats per room.
+      let savedTeams = data.league.teams.map((team) => ({ ...team, kind: team.kind ?? (team.id === 'user' ? ('player' as const) : ('bot' as const)) } as LeagueTeam));
+      if (savedTeams.length < ZONE_SIZE) {
+        const extras = createLeagueTeams(data.league.division).filter((team) => teamKind(team) === 'bot' && !savedTeams.some((row) => ecoIdOf(row) === ecoIdOf(team)));
+        savedTeams = [...savedTeams, ...extras].slice(0, ZONE_SIZE);
+      }
+      nextLeague = { ...data.league, teams: savedTeams, monthKey: data.league.monthKey ?? monthKeyOf(now), zone: data.league.zone ?? 0, zoneCount: data.league.zoneCount ?? 1 };
       const elapsedMonths = data.league.monthKey ? monthsBetween(data.league.monthKey, monthKeyOf(now)) : 0;
       if (elapsedMonths > 0) {
         let division = nextLeague.division;
@@ -610,15 +704,18 @@ function App() {
     ecoSnapshot = after.teams;
     setEcosystem(after);
     const current = leagueRef.current;
-    const incoming = new Map(ecoTeamsInDivision(after.teams, current.division).map((team) => [team.id, team]));
-    const kept = current.teams.filter((team) => team.id === 'user' || incoming.has(team.id));
-    const missing = [...incoming.values()].filter((team) => !kept.some((row) => row.id === team.id));
+    const incoming = new Map(ecoTeamsInDivision(after.teams, current.division).map((team) => [ecoIdOf(team), team]));
+    // Real managers are never dropped by the bot refresh, and the room never grows past 16.
+    const kept = current.teams.filter((team) => team.id === 'user' || teamKind(team) !== 'bot' || incoming.has(ecoIdOf(team)));
+    const missing = [...incoming.values()]
+      .filter((team) => !kept.some((row) => ecoIdOf(row) === team.id))
+      .slice(0, Math.max(0, ZONE_SIZE - kept.length));
     if (!missing.length && kept.length === current.teams.length) return;
     const next: LeagueState = {
       ...current,
       teams: [
-        ...kept.map((team) => { const eco = incoming.get(team.id); return eco ? { ...team, name: eco.name, ovr: eco.ovr } : team; }),
-        ...missing.map((team) => ({ id: team.id, name: team.name, ovr: team.ovr, played: 0, wins: 0, losses: 0, roundDiff: 0, points: 0 })),
+        ...kept.map((team) => { const eco = incoming.get(ecoIdOf(team)); return eco ? { ...team, name: eco.name, ovr: eco.ovr } : team; }),
+        ...missing.map((team) => ({ id: team.id, name: team.name, ovr: team.ovr, played: 0, wins: 0, losses: 0, roundDiff: 0, points: 0, kind: 'bot' as const })),
       ],
     };
     leagueRef.current = next;
@@ -681,6 +778,48 @@ function App() {
     ? Math.min(99, Math.round(squadCards.reduce((sum, card) => sum + cardPower(card).ovr, 0) / squadCards.length) + chemBonus)
     : 0;
   teamRatingRef.current = teamRating;
+
+  // Service layer: the local manager profile + squad, and every real rival's seat,
+  // are mirrored to Supabase when keys are configured and to localStorage otherwise.
+  useEffect(() => {
+    if (!hydrated || showCreation) return;
+    const division = league.division;
+    const zone = league.zone ?? 0;
+    const zoneCount = league.zoneCount ?? 1;
+    const userRow = league.teams.find((team) => team.id === 'user');
+    const squadPayload: SquadCard[] = squadCards.map((card) => ({ name: card.name, role: card.role, level: card.level, ovr: cardPower(card).ovr, team: card.team, country: card.country }));
+    void leagueService.ensureManager({
+      id: 'user',
+      manager: profile.nickname,
+      teamName: 'YOUR CLUB',
+      avatar: profile.avatar,
+      perk: profile.perk,
+      perk2: profile.perk2,
+      division,
+      zone,
+      zoneCount,
+      points: userRow?.points ?? 0,
+      ovr: teamRating || squadOvr(squadPayload),
+      squad: squadPayload,
+      updatedAt: Date.now(),
+    });
+    const rivals = league.teams.filter((team) => teamKind(team) === 'human');
+    void leagueService.seedManagers(rivals.map((team) => ({
+      id: team.id,
+      manager: team.manager ?? 'MANAGER',
+      teamName: team.name,
+      avatar: team.avatar,
+      perk: team.perk,
+      division,
+      zone,
+      zoneCount,
+      points: team.points,
+      ovr: team.ovr,
+      squad: team.squad ?? [],
+      updatedAt: Date.now(),
+    })));
+  }, [hydrated, showCreation, league.division, league.zone, league.zoneCount, league.teams, profile, teamRating, owned, squad]);
+
   const squadDuelists: Duelist[] = squadCards.map((card) => {
     const power = cardPower(card);
     return { name: card.name, role: card.role, ovr: power.ovr, aim: power.aim, rfl: power.rfl, sns: power.sns, clt: power.clt };
@@ -921,6 +1060,11 @@ function ArenaPage({ teamRating, chemistry, perks, league, setLeague, onWin, squ
   const [showRoadmap, setShowRoadmap] = useState(false);
   const [browseDivision, setBrowseDivision] = useState<number | null>(null);
   const [scoutTeam, setScoutTeam] = useState<EcoTeam | null>(null);
+  const [managerTeam, setManagerTeam] = useState<LeagueTeam | null>(null);
+  const zoneIndex = league.zone ?? 0;
+  const zoneCount = league.zoneCount ?? 1;
+  const promoteCount = promotionSlots(league.division, zoneCount);
+  const humanCount = league.teams.filter((team) => teamKind(team) !== 'bot').length;
   const slotStartRef = useRef<number | null>(null);
 
   useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer); }, []);
@@ -1007,15 +1151,16 @@ function ArenaPage({ teamRating, chemistry, perks, league, setLeague, onWin, squ
   const recapModal = dayResult ? <MatchRecapModal info={{ matches: [], coins: dayResult.coins, day: dayResult }} onClose={() => setDayResult(null)} /> : null;
   const roadmap = showRoadmap ? <LeagueRoadmap current={league.division} onClose={() => setShowRoadmap(false)} onOpen={(division) => { setShowRoadmap(false); setBrowseDivision(division); }} /> : null;
   if (live || result) return <><ArenaLive broadcast={leagueLive} resultNote={resultNote} opponent={opponent} score={score} round={round} feed={feed} alive={alive} paused={paused} speed={speed} setSpeed={setSpeed} onPause={() => setPaused((current) => !current)} onRound={playRound} onSkip={() => finish(true, score.us >= score.them || score.them >= 13 ? score : { us: Math.max(score.us, 13), them: score.them })} result={result} onExit={() => { setLive(false); setResult(null); setLeagueLive(false); setScrimLive(false); slotStartRef.current = null; }} />{recapModal}</>;
-  return <><PageTitle eyebrow="COMPETITIVE PLAY" title="Play Arena" subtitle="League matches run automatically every hour at :30 — play friendlies and daily quests while you wait." /><div className="arena-mode-bar"><div className="club-tabs arena-mode-toggle"><button className={mode === 'quick' ? 'active' : ''} onClick={() => setMode('quick')}>Quick Match</button><button className={mode === 'league' ? 'active' : ''} onClick={() => setMode('league')}>League Season <span>16 Teams</span></button></div><span className="arena-mode-note">{mode === 'quick' ? 'Pick any opponent and play a single match.' : `Division ${league.division + 1} of 15 · ${division.name} · Season ${league.season}`}</span></div>
+  return <><PageTitle eyebrow="COMPETITIVE PLAY" title="Play Arena" subtitle="League matches run automatically every hour at :30 — play friendlies and daily quests while you wait." /><div className="arena-mode-bar"><div className="club-tabs arena-mode-toggle"><button className={mode === 'quick' ? 'active' : ''} onClick={() => setMode('quick')}>Quick Match</button><button className={mode === 'league' ? 'active' : ''} onClick={() => setMode('league')}>League Season <span>16 Teams</span></button></div><span className="arena-mode-note">{mode === 'quick' ? 'Pick any opponent and play a single match.' : `DIV ${league.division + 1} • ${zoneLabel(zoneIndex).toUpperCase()} · ${division.name} · ${zoneCount > 1 ? `${zoneCount} ZONES · ` : ''}Season ${league.season}`}</span></div>
     {questPanel}
     {mode === 'quick' ? <div className="arena-lobby"><div className="arena-lobby-art"><div className="arena-radar"><div className="radar-ring one" /><div className="radar-ring two" /><div className="radar-cross" /><div className="arena-dot one" /><div className="arena-dot two" /><div className="arena-dot three" /></div><div className="arena-lobby-emblem"><Swords size={34} /></div></div><div className="arena-lobby-copy"><div className="eyebrow orange">ARENA MATCHMAKING</div><h2>Choose your opponent.</h2><p>Your active five, chemistry, and manager perks influence every round. Win the BO1 to collect the listed coin reward.</p><div className="arena-stat-line"><span><small>TEAM OVR</small><strong>{teamRating || '--'}</strong></span><span><small>CHEMISTRY</small><strong>{chemistry}</strong></span><span><small>XP ON WIN</small><strong>+{100 + quickOpponent.reward / 10}</strong></span></div><div className="opponent-list">{quickOpponents.map((item) => <button key={item.id} className={`opponent-option ${opponentId === item.id ? 'selected' : ''}`} onClick={() => setOpponentId(item.id)}><span className={`opponent-tier ${item.color}`}>{item.ovr}</span><span><strong>{item.name}</strong><small>{item.ovr} OVR AI opponent</small></span><b><Coins size={13} /> +{item.reward.toLocaleString()}</b></button>)}</div><button className="primary-button arena-start" onClick={() => beginMatch('quick')}><Play size={16} fill="currentColor" /> START MATCH</button><button className="league-ghost arena-scrim" onClick={() => beginMatch('scrim')}><Swords size={15} /> Play Scrimmage (Friendly) <span>{scrimWins}/{SCRIM_WIN_CAP} paid wins</span></button></div></div>
-    : <div className="league-shell"><div className="league-hero"><div className="league-rank-badge"><Crown size={20} /><strong>{league.division + 1}</strong><span>DIVISION</span></div><div className="league-hero-copy"><div className="eyebrow orange">DIVISION {league.division + 1} OF 15 · {seasonLabel(league.season).toUpperCase()} · ENDS IN {seasonCountdown(Date.now()).toUpperCase()}</div><h2>{division.name}</h2><p>16-team league · 24 hourly matches per day · Opponent OVR {division.ovrMin}–{division.ovrMax}</p><div className="league-zone-legend"><span className="promotion">Promote 1–3 at 00:00</span><span className="relegation">Relegate 14–16 at 00:00</span><span><Coins size={12} /> +{LEAGUE_WIN_COINS} win / +{LEAGUE_LOSS_COINS} loss</span></div></div><div className="league-progress"><span>TODAY</span><strong>{Math.min(slot, SLOTS_PER_DAY)} / {SLOTS_PER_DAY}</strong><div className="league-progress-bar"><i style={{ width: `${Math.round((Math.min(slot, SLOTS_PER_DAY) / SLOTS_PER_DAY) * 100)}%` }} /></div><small>{leagueOpponentTeam ? `Next: ${leagueOpponentTeam.name} · ${leagueOpponentTeam.ovr} OVR` : 'Next opponent loading'}</small></div></div>
+    : <div className="league-shell"><div className="league-hero"><div className="league-rank-badge"><Crown size={20} /><strong>{league.division + 1}</strong><span>DIVISION</span></div><div className="league-hero-copy"><div className="eyebrow orange">DIVISION {league.division + 1} OF 15 · {zoneLabel(zoneIndex).toUpperCase()} · {seasonLabel(league.season).toUpperCase()} · ENDS IN {seasonCountdown(Date.now()).toUpperCase()}</div><div className="zone-badges"><span className="zone-badge">DIV {league.division + 1} • {zoneLabel(zoneIndex).toUpperCase()}</span>{zoneCount > 1 && <span className="zone-badge soft">{zoneCount} ZONES</span>}<span className="zone-badge soft">{humanCount} REAL MANAGERS · {ZONE_SIZE - humanCount} BOTS</span></div><h2>{division.name}</h2><p>16-team room · 24 hourly matches per day · Opponent OVR {division.ovrMin}–{division.ovrMax}{league.division === divisions.length - 1 ? ' · Top 16 World Elite' : ''}</p><div className="league-zone-legend"><span className="promotion">Promote 1–{promoteCount} at 00:00</span><span className="relegation">Relegate 14–16 at 00:00</span><span><Coins size={12} /> +{LEAGUE_WIN_COINS} win / +{LEAGUE_LOSS_COINS} loss</span></div></div><div className="league-progress"><span>TODAY</span><strong>{Math.min(slot, SLOTS_PER_DAY)} / {SLOTS_PER_DAY}</strong><div className="league-progress-bar"><i style={{ width: `${Math.round((Math.min(slot, SLOTS_PER_DAY) / SLOTS_PER_DAY) * 100)}%` }} /></div><small>{leagueOpponentTeam ? `Next: ${leagueOpponentTeam.name} · ${leagueOpponentTeam.ovr} OVR` : 'Next opponent loading'}</small></div></div>
       <div className="match-clock-card"><div className="match-clock-copy"><div className="eyebrow orange">{liveReady ? 'LIVE BROADCAST WINDOW' : 'HOURLY LEAGUE SCHEDULE'}</div><strong>{liveReady ? 'League match is LIVE now — 2D tactical broadcast, 1x speed only.' : `Next League Match starts at ${slotClockLabel(nextHour)} (in ${countdown})`}</strong><small>{liveReady ? 'Stay on this page to watch the tactical map in real time.' : 'Matches simulate automatically at every :30 — even while you are offline.'}</small></div><div className="match-clock-right"><span className={`clock-big ${liveReady ? 'is-live' : ''}`}>{liveReady ? 'LIVE' : countdown}</span><small>{liveReady ? `Window closes ${String(liveHour ?? 0).padStart(2, '0')}:35` : `Kick-off ${slotClockLabel(nextHour)}`}</small></div></div>
-      <div className="league-actions"><button className="primary-button" onClick={() => beginMatch('scrim')}><Swords size={16} /> Play Scrimmage (Friendly)</button><button className="league-ghost" onClick={() => setShowRoadmap(true)}><LayoutGrid size={15} /> View League Roadmap</button><span className="league-prize"><Trophy size={13} /> Friendly wins +{SCRIM_WIN_COINS} · {scrimWins}/{SCRIM_WIN_CAP} paid wins today</span></div><div className="league-table"><div className="league-table-head"><span>#</span><span>CLUB</span><span>P</span><span>W</span><span>L</span><span>RD</span><span>PTS</span></div>{sortedTeams.map((team, index) => { const rank = index + 1; const zone = rank <= 3 ? 'promotion' : rank >= 14 ? 'relegation' : ''; return <div key={team.id} className={`league-row ${zone} ${team.id === 'user' ? 'is-user' : ''}`}><span className="league-rank">{rank}</span><span className="league-club">{team.id === 'user' ? <b>YOUR CLUB</b> : <button className="team-link" onClick={() => setScoutTeam(ecoTeamById(ecosystem, team.id) ?? null)}>{team.name}</button>}{team.id === 'user' && <i>YOU</i>}<small>OVR {team.ovr || teamRating}</small></span><span>{team.played}</span><span>{team.wins}</span><span>{team.losses}</span><span>{team.roundDiff > 0 ? `+${team.roundDiff}` : team.roundDiff}</span><strong>{team.points}</strong></div>; })}</div></div>}
+      <div className="league-actions"><button className="primary-button" onClick={() => beginMatch('scrim')}><Swords size={16} /> Play Scrimmage (Friendly)</button><button className="league-ghost" onClick={() => setShowRoadmap(true)}><LayoutGrid size={15} /> View League Roadmap</button><span className="league-prize"><Trophy size={13} /> Friendly wins +{SCRIM_WIN_COINS} · {scrimWins}/{SCRIM_WIN_CAP} paid wins today</span></div><div className="league-table"><div className="league-table-head"><span>#</span><span>CLUB</span><span>P</span><span>W</span><span>L</span><span>RD</span><span>PTS</span></div>{sortedTeams.map((team, index) => { const rank = index + 1; const tierZone = rank <= promoteCount ? 'promotion' : rank >= 14 ? 'relegation' : ''; const isHuman = teamKind(team) !== 'bot'; const avatar = isHuman ? avatarDetails[(team.avatar ?? 'ghost') as Avatar] ?? avatarDetails.ghost : null; return <div key={team.id} className={`league-row ${tierZone} ${team.id === 'user' ? 'is-user' : ''} ${isHuman ? 'is-human' : 'is-bot'}`}><span className="league-rank">{rank}</span><span className="league-club">{team.id === 'user' ? <b>YOUR CLUB</b> : <button className="team-link" onClick={() => isHuman ? setManagerTeam(team) : setScoutTeam(ecoTeamById(ecosystem, ecoIdOf(team)) ?? null)}>{team.name}</button>}<em className={`seat-badge ${isHuman ? 'player' : 'bot'}`}>{isHuman ? 'PLAYER' : 'BOT'}</em>{team.id === 'user' && <i>YOU</i>}<small className="seat-meta">{isHuman ? <><span className="seat-avatar" style={{ color: avatar?.color }}>{avatar?.icon}</span>{team.manager ?? 'MANAGER'} · OVR {team.ovr}</> : `AI PRO TEAM · OVR ${team.ovr || teamRating}`}</small></span><span>{team.played}</span><span>{team.wins}</span><span>{team.losses}</span><span>{team.roundDiff > 0 ? `+${team.roundDiff}` : team.roundDiff}</span><strong>{team.points}</strong></div>; })}</div></div>}
     {roadmap}
     {browseDivision !== null && <DivisionBrowser division={browseDivision} ecosystem={ecosystem} onDivision={setBrowseDivision} onTeam={setScoutTeam} onClose={() => setBrowseDivision(null)} />}
     {scoutTeam && <TeamRosterModal team={scoutTeam} onClose={() => setScoutTeam(null)} />}
+    {managerTeam && <ManagerRosterModal team={managerTeam} division={league.division} zone={zoneLabel(zoneIndex)} onClose={() => setManagerTeam(null)} />}
     {recapModal}
   </>;
 }
@@ -1044,6 +1189,29 @@ function DivisionBrowser({ division, ecosystem, onDivision, onTeam, onClose }: {
       {!table.length && <div className="division-empty">No clubs registered in this division yet.</div>}
     </div>
     <div className="division-note"><span className="promotion">1–3 promote at 00:00</span><span className="relegation">14–16 relegate at 00:00</span><span>All 15 divisions move every midnight</span></div>
+  </div></div>;
+}
+
+function ManagerRosterModal({ team, division, zone, onClose }: { team: LeagueTeam; division: number; zone: string; onClose: () => void }) {
+  const squad = team.squad ?? [];
+  const avatar = avatarDetails[(team.avatar ?? 'ghost') as Avatar] ?? avatarDetails.ghost;
+  const info = divisions[Math.max(0, Math.min(divisions.length - 1, division))];
+  const managerPerks = [team.perk, team.perk2].filter((perk): perk is string => Boolean(perk));
+  return <div className="league-overlay roster-overlay" onClick={onClose}><div className="roster-modal manager-modal" onClick={(event) => event.stopPropagation()}>
+    <button className="overlay-close" onClick={onClose}><X size={18} /></button>
+    <div className="roster-head">
+      <div className="manager-portrait" style={{ backgroundColor: avatar.color }}>{avatar.icon}</div>
+      <div className="roster-head-copy"><div className="eyebrow orange">REAL MANAGER · DIV {division + 1} • {zone.toUpperCase()}</div><h2>{team.name}</h2><p>Manager <strong>{team.manager ?? 'MANAGER'}</strong> · {info.name} · Team OVR {team.ovr} · {team.points} pts · {team.wins}W–{team.losses}L</p>
+        <div className="manager-perks">{managerPerks.length ? managerPerks.map((perk) => <span key={perk} className="perk-chip"><Target size={12} /> {perk}{perk in perkDetails ? ` · ${perkDetails[perk as Perk]}` : ''}</span>) : <span className="perk-chip">No manager perks</span>}</div>
+      </div>
+    </div>
+    <div className="roster-grid">{squad.length ? squad.map((card) => { const power = Math.min(99, card.ovr + (card.level >= 5 ? 5 : Math.max(0, card.level - 1))); const tier = tierFromOvr(power); const config = tierConfig[tier]; return <div key={`${card.name}-${card.role}`} className="roster-card" style={{ '--tier-color': config.color, '--tier-soft': config.soft } as React.CSSProperties}>
+      <span className="card-level-badge">LV {card.level}</span>
+      <div className="roster-avatar" style={{ color: config.color }}>{card.name.slice(0, 2).toUpperCase()}</div>
+      <strong>{card.name}</strong><small>{card.role}{card.team ? ` · ${card.team}` : ''}</small>
+      <div className="roster-stats"><span><small>OVR</small><b>{power}</b></span><span><small>BASE</small><b>{card.ovr}</b></span><span><small>LEVEL</small><b>{card.level}</b></span></div>
+    </div>; }) : <div className="division-empty">This manager has not locked a 5-card squad yet.</div>}</div>
+    <div className="division-note"><span className="promotion">Promote 1–{promotionSlots(division, 1)} at 00:00</span><span className="relegation">Relegate 14–16 at 00:00</span><span>Team OVR = average of the 5 active cards</span></div>
   </div></div>;
 }
 
