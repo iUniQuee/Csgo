@@ -141,7 +141,8 @@
   .roadmap-modal h2 { margin: .25rem 0 .35rem; font-size: 1.35rem; font-weight: 800; color: #fff; }
   .roadmap-modal > p { margin-bottom: 1rem; font-size: .72rem; line-height: 1.5; color: #94a3b8; }
   .roadmap-list { display: flex; flex-direction: column; gap: .35rem; }
-  .roadmap-row { display: grid; grid-template-columns: 34px 1fr auto auto; align-items: center; gap: .6rem; border-radius: .65rem; border: 1px solid rgba(148,163,184,.12); background: rgba(15,23,42,.4); padding: .5rem .65rem; }
+  .roadmap-row { display: grid; grid-template-columns: 34px 1fr auto auto 16px; align-items: center; gap: .6rem; width: 100%; border-radius: .65rem; border: 1px solid rgba(148,163,184,.12); background: rgba(15,23,42,.4); padding: .5rem .65rem; text-align: left; font: inherit; color: inherit; transition: border-color .2s ease, background .2s ease; }
+  .roadmap-row:hover { border-color: rgba(249,115,22,.45); background: rgba(249,115,22,.08); }
   .roadmap-row.cleared { border-color: rgba(52,211,153,.22); background: rgba(52,211,153,.05); }
   .roadmap-row.current { border-color: rgba(249,115,22,.6); background: rgba(249,115,22,.1); box-shadow: 0 0 0 1px rgba(249,115,22,.25); }
   .roadmap-badge { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: .5rem; border: 1px solid rgba(148,163,184,.25); background: rgba(15,23,42,.7); font-size: .68rem; font-weight: 800; color: #cbd5e1; }
@@ -340,3 +341,60 @@
 
 @media (min-width: 640px) and (max-width: 1023px) { .pack-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 640px) { .pity-strip { flex-wrap: wrap; } .pity-strip span { flex-basis: 100%; } }
+
+  .roadmap-open { color: #64748b; }
+  .team-link { border: 0; border-bottom: 1px dashed rgba(251,146,60,.45); background: none; padding: 0; font: inherit; font-size: .74rem; font-weight: 700; color: #e2e8f0; text-align: left; }
+  .team-link:hover { color: #fdba74; border-bottom-color: #fdba74; }
+
+  .division-overlay { z-index: 75; }
+  .division-modal { position: relative; width: 100%; max-width: 720px; max-height: 90vh; overflow: auto; border-radius: 1.25rem; border: 1px solid rgba(34,211,238,.22); background: #15202e; padding: 1.6rem; box-shadow: 0 30px 60px -20px rgba(0,0,0,.8); }
+  .division-modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+  .division-modal h2 { margin: .25rem 0 .3rem; font-size: 1.35rem; font-weight: 800; color: #fff; }
+  .division-modal-copy p { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; font-size: .7rem; line-height: 1.55; color: #94a3b8; }
+  .division-switch { display: flex; align-items: center; gap: .35rem; border-radius: .65rem; border: 1px solid rgba(148,163,184,.18); background: rgba(15,23,42,.6); padding: .3rem; }
+  .division-switch button { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: .4rem; border: 1px solid rgba(148,163,184,.2); background: #1e293b; font-size: .85rem; font-weight: 800; color: #e2e8f0; }
+  .division-switch button:disabled { opacity: .3; cursor: not-allowed; }
+  .division-switch span { display: flex; align-items: baseline; gap: .15rem; padding: 0 .2rem; color: #cbd5e1; }
+  .division-switch b { font-size: .9rem; font-weight: 900; color: #fff; }
+  .division-switch small { font-size: .58rem; color: #64748b; }
+  .division-table { margin-top: .9rem; max-height: 46vh; overflow: auto; }
+  .division-table .league-row { padding: .4rem .65rem; }
+  .division-empty { padding: 1.5rem; text-align: center; font-size: .72rem; color: #64748b; }
+  .division-note { display: flex; flex-wrap: wrap; gap: .45rem .9rem; margin-top: .8rem; font-size: .58rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: #64748b; }
+  .division-note span { display: inline-flex; align-items: center; gap: .35rem; }
+  .division-note span:before { content: ''; width: 6px; height: 6px; border-radius: 999px; background: #64748b; }
+  .division-note .promotion:before { background: #34d399; }
+  .division-note .relegation:before { background: #f87171; }
+
+  .roster-overlay { z-index: 80; }
+  .roster-modal { position: relative; width: 100%; max-width: 860px; max-height: 90vh; overflow: auto; border-radius: 1.25rem; border: 1px solid rgba(251,146,60,.28); background: #15202e; padding: 1.6rem; box-shadow: 0 30px 60px -20px rgba(0,0,0,.8); }
+  .roster-head { display: flex; flex-wrap: wrap; align-items: center; gap: 1.1rem; }
+  .roster-badge { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 88px; height: 88px; border-radius: 1rem; border: 2px solid var(--tier-color); background: color-mix(in srgb, var(--tier-color) 16%, transparent); color: var(--tier-color); }
+  .roster-badge span { font-size: .5rem; font-weight: 800; letter-spacing: .14em; }
+  .roster-badge strong { font-size: 1.7rem; font-weight: 900; line-height: 1.1; }
+  .roster-badge small { font-size: .45rem; font-weight: 800; letter-spacing: .12em; color: #94a3b8; }
+  .roster-head-copy h2 { margin: .15rem 0 .2rem; font-size: 1.5rem; font-weight: 900; color: #fff; }
+  .roster-head-copy p { font-size: .7rem; color: #94a3b8; }
+  .roster-form { display: flex; align-items: center; gap: .3rem; margin-top: .5rem; }
+  .roster-form span { margin-right: .2rem; font-size: .52rem; font-weight: 800; letter-spacing: .14em; color: #64748b; }
+  .roster-form b { display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: .35rem; font-size: .6rem; font-weight: 900; }
+  .roster-form b.win { border: 1px solid rgba(52,211,153,.4); background: rgba(52,211,153,.15); color: #34d399; }
+  .roster-form b.loss { border: 1px solid rgba(248,113,113,.35); background: rgba(248,113,113,.12); color: #f87171; }
+  .roster-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem; margin-top: 1.1rem; }
+  .roster-card { position: relative; display: flex; flex-direction: column; overflow: hidden; border-radius: .85rem; border: 1px solid color-mix(in srgb, var(--tier-color) 55%, transparent); background: linear-gradient(160deg, color-mix(in srgb, var(--tier-color) 22%, #15202e), #111c2a 65%); padding: .6rem; }
+  .roster-card:before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 85% 0%, var(--tier-soft), transparent 62%); pointer-events: none; }
+  .roster-card-top { position: relative; display: flex; align-items: center; justify-content: space-between; gap: .25rem; }
+  .roster-tier { font-size: .5rem; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; color: var(--tier-color); }
+  .roster-role { border-radius: .25rem; background: rgba(15,23,42,.6); padding: .1rem .25rem; font-size: .46rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #cbd5e1; }
+  .roster-nick { position: relative; margin-top: .45rem; overflow: hidden; font-size: .78rem; font-weight: 900; color: #fff; text-overflow: ellipsis; white-space: nowrap; }
+  .roster-ovr { position: relative; display: flex; align-items: baseline; gap: .2rem; margin-top: .15rem; color: var(--tier-color); }
+  .roster-ovr b { font-size: 1.35rem; font-weight: 900; line-height: 1; }
+  .roster-ovr small { font-size: .45rem; font-weight: 800; letter-spacing: .1em; color: #94a3b8; }
+  .roster-stats { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .2rem .5rem; margin-top: .5rem; border-top: 1px solid rgba(148,163,184,.15); padding-top: .4rem; }
+  .roster-stats span { display: flex; align-items: baseline; justify-content: space-between; font-size: .5rem; font-weight: 800; letter-spacing: .05em; color: #64748b; }
+  .roster-stats b { font-size: .66rem; font-weight: 900; color: #e2e8f0; }
+  .roster-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; margin-top: 1rem; border-top: 1px solid rgba(148,163,184,.15); padding-top: .7rem; font-size: .6rem; color: #64748b; }
+  .roster-foot span { display: inline-flex; align-items: center; gap: .3rem; }
+
+  @media (min-width: 700px) { .roster-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+  @media (max-width: 640px) { .division-modal, .roster-modal { padding: 1.2rem; } .division-modal-head { flex-direction: column; } }

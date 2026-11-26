@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { simulateRound, type Duelist, type FeedLine } from './matchEngine';
+import { advanceEcoState, ecoTeamById, ecoTeamsInDivision, readEcoState, resetEcoState, saveEcoState, teamAvgOvr, teamRoster, teamTier, type EcoState, type EcoTeam, type OvrRange } from './ecosystem';
 import {
   BadgeCheck,
   Box,
@@ -109,27 +110,18 @@ const divisions: Division[] = [
 ];
 
 const leagueMatchdays = 24;
-const realTop16 = ['Team Vitality', 'Team Spirit', 'G2 Esports', 'NAVI', 'MOUZ', 'FaZe Clan', 'The MongolZ', 'Eternal Fire', 'FURIA', 'Team Liquid', 'Astralis', 'Virtus.pro', 'HEROIC', 'Team Falcons', 'paiN Gaming', 'Complexity'];
-const realTop16Ovr: Record<string, number> = { 'Team Vitality': 96, 'Team Spirit': 95, 'The MongolZ': 93, 'Team Falcons': 93, NAVI: 93, 'G2 Esports': 92, MOUZ: 92, 'FaZe Clan': 92, FURIA: 92, 'Eternal Fire': 91, 'Team Liquid': 91, Astralis: 91, 'Virtus.pro': 91, HEROIC: 91, 'paiN Gaming': 91, Complexity: 91 };
-const academyTeams = ['NAVI Junior', 'Spirit Academy', 'MOUZ NXT', 'FURIA Academy', 'Imperial Academy', 'B8 Academy', 'Sangal Academy', 'SAW Academy', '3DMAX Academy', 'BetBoom Academy', 'ATOX Academy', 'Chinggis Warriors Academy', 'GamerLegion', '9INE', 'Monte', 'PARIVISION'];
-const tier2Teams = ['SAW', '3DMAX', 'B8', 'BetBoom', 'Sangal', 'Nemiga', 'ATOX', 'Chinggis Warriors', 'BIG', 'GamerLegion', '9INE', 'Monte', 'PARIVISION', 'MIBR', 'Legacy', 'Imperial'];
-const contenderTeams = ['Astralis', 'Team Liquid', 'FURIA', 'Eternal Fire', 'Team Falcons', 'paiN Gaming', 'Complexity', 'Virtus.pro', 'HEROIC', 'BIG', 'G2 Esports', 'FaZe Clan', 'NAVI', 'MOUZ', 'Team Spirit', 'The MongolZ'];
+const ecoRanges: OvrRange[] = divisions.map((item) => ({ min: item.ovrMin, max: item.ovrMax }));
+let ecoSnapshot: EcoTeam[] = readEcoState(ecoRanges).teams;
 
 function createLeagueTeams(divisionIndex: number): LeagueTeam[] {
   const division = divisions[divisionIndex];
   const base = { played: 0, wins: 0, losses: 0, roundDiff: 0, points: 0 };
-  const ai: LeagueTeam[] = divisionIndex === 14
-    ? realTop16.map((name, index) => ({ ...base, id: `ai-${index}`, name, ovr: realTop16Ovr[name] ?? division.ovrMax }))
-    : (() => {
-      const pool = divisionIndex <= 3 ? academyTeams : divisionIndex <= 8 ? tier2Teams : contenderTeams;
-      const offset = (divisionIndex * 5) % pool.length;
-      return Array.from({ length: 15 }, (_, index) => ({
-        ...base,
-        id: `ai-${index}`,
-        name: pool[(offset + index) % pool.length],
-        ovr: Math.min(division.ovrMax, Math.round(division.ovrMin + (index / 14) * (division.ovrMax - division.ovrMin))),
-      }));
-    })();
+  const pool = ecoTeamsInDivision(ecoSnapshot, divisionIndex);
+  // Division 1 has 15 AI clubs + the user's custom team; every other division is a full 16-club table.
+  const roster: { id: string; name: string; ovr: number }[] = pool.length
+    ? pool.map((team) => ({ id: team.id, name: team.name, ovr: team.ovr }))
+    : Array.from({ length: divisionIndex === 0 ? 15 : 16 }, (_, index) => ({ id: `ai-${index}`, name: `AI Club ${index + 1}`, ovr: division.ovrMax }));
+  const ai: LeagueTeam[] = roster.map((team) => ({ ...base, ...team }));
   return [{ ...base, id: 'user', name: 'YOUR CLUB', ovr: 0 }, ...ai];
 }
 
@@ -552,7 +544,10 @@ function App() {
   const [quests, setQuests] = useState<QuestState>(() => createQuestState());
   const [seasonNotice, setSeasonNotice] = useState<{ season: number; from: number; to: number; coins: number; packs: number } | null>(null);
   const [lastActiveAt, setLastActiveAt] = useState(() => Date.now());
+  const [ecosystem, setEcosystem] = useState<EcoState>(() => readEcoState(ecoRanges));
   const leagueRef = useRef(league);
+  const ecoRef = useRef(ecosystem);
+  ecoRef.current = ecosystem;
   leagueRef.current = league;
   const questsRef = useRef(quests);
   questsRef.current = quests;
@@ -561,6 +556,10 @@ function App() {
   useEffect(() => {
     const now = Date.now();
     const saved = localStorage.getItem('cs2-ultimate-team-save');
+    const ecoLoaded = readEcoState(ecoRanges, now);
+    ecoSnapshot = ecoLoaded.teams;
+    ecoRef.current = ecoLoaded;
+    setEcosystem(ecoLoaded);
     if (!saved) { setLastActiveAt(now); setShowCreation(true); setHydrated(true); return; }
     const data = JSON.parse(saved) as SaveData;
     const savedXp = data.managerXp ?? 0;
@@ -620,7 +619,34 @@ function App() {
     try { localStorage.setItem(PITY_STORAGE_KEY, String(iconPity)); } catch { /* storage unavailable */ }
   }, [hydrated, iconPity]);
 
+  useEffect(() => {
+    if (!hydrated) return;
+    saveEcoState(ecosystem);
+  }, [hydrated, ecosystem]);
+
   const applyLeague = useCallback((next: LeagueState): void => { leagueRef.current = next; setLeague(next); }, []);
+  const syncEcosystem = useCallback((now: number): void => {
+    const before = ecoRef.current;
+    const after = advanceEcoState(before, now, ecoRanges);
+    if (after === before) return;
+    ecoRef.current = after;
+    ecoSnapshot = after.teams;
+    setEcosystem(after);
+    const current = leagueRef.current;
+    const incoming = new Map(ecoTeamsInDivision(after.teams, current.division).map((team) => [team.id, team]));
+    const kept = current.teams.filter((team) => team.id === 'user' || incoming.has(team.id));
+    const missing = [...incoming.values()].filter((team) => !kept.some((row) => row.id === team.id));
+    if (!missing.length && kept.length === current.teams.length) return;
+    const next: LeagueState = {
+      ...current,
+      teams: [
+        ...kept.map((team) => { const eco = incoming.get(team.id); return eco ? { ...team, name: eco.name, ovr: eco.ovr } : team; }),
+        ...missing.map((team) => ({ id: team.id, name: team.name, ovr: team.ovr, played: 0, wins: 0, losses: 0, roundDiff: 0, points: 0 })),
+      ],
+    };
+    leagueRef.current = next;
+    setLeague(next);
+  }, []);
   const settleLeagueClock = useCallback((now: number): void => {
     const current = leagueRef.current;
     const result = advanceLeague(current, now, teamRatingRef.current);
@@ -630,13 +656,14 @@ function App() {
       if (result.coins) setCoins((value) => value + result.coins);
       if (result.matches.length || result.dayResult) setRecap({ matches: result.matches, coins: result.coins, day: result.dayResult });
     }
+    syncEcosystem(now);
     const today = dayKeyOf(now);
     if (questsRef.current.day !== today) {
       const fresh = createQuestState(today);
       questsRef.current = fresh;
       setQuests(fresh);
     }
-  }, []);
+  }, [syncEcosystem]);
 
   useEffect(() => {
     if (!hydrated || showCreation) return;
@@ -683,7 +710,7 @@ function App() {
     starters.forEach((card) => { nextSquad[card.role] = card.instanceId; });
     setProfile(nextProfile); setOwned(starters); setSquad(nextSquad); setShowCreation(false); setToast('Starter squad assembled. Welcome to Ultimate Team.');
   };
-  const resetProfile = (): void => { localStorage.removeItem('cs2-ultimate-team-save'); localStorage.removeItem(PITY_STORAGE_KEY); setIconPity(0); setProfile(createProfile()); setCoins(2500); setOwned([]); setSquad(emptySquad); setNewCardIds([]); setManagerXp(0); setRewardedLevel(1); setDailyClaimAt(0); setLevelUp(null); setLeague(createSeason(0, 1, [])); setPage('squad'); setShowCreation(true); setPack(null); setRecap(null); setSeasonNotice(null); setLastActiveAt(Date.now()); const freshQuests = createQuestState(); questsRef.current = freshQuests; setQuests(freshQuests); const freshLeague = createSeason(0, 1, []); leagueRef.current = freshLeague; setLeague(freshLeague); };
+  const resetProfile = (): void => { localStorage.removeItem('cs2-ultimate-team-save'); localStorage.removeItem(PITY_STORAGE_KEY); const freshEco = resetEcoState(ecoRanges); ecoSnapshot = freshEco.teams; ecoRef.current = freshEco; setEcosystem(freshEco); setIconPity(0); setProfile(createProfile()); setCoins(2500); setOwned([]); setSquad(emptySquad); setNewCardIds([]); setManagerXp(0); setRewardedLevel(1); setDailyClaimAt(0); setLevelUp(null); setLeague(createSeason(0, 1, [])); setPage('squad'); setShowCreation(true); setPack(null); setRecap(null); setSeasonNotice(null); setLastActiveAt(Date.now()); const freshQuests = createQuestState(); questsRef.current = freshQuests; setQuests(freshQuests); const freshLeague = createSeason(0, 1, []); leagueRef.current = freshLeague; setLeague(freshLeague); };
   const bumpQuest = (id: QuestId): void => {
     const current = questsRef.current;
     const today = dayKeyOf(Date.now());
@@ -785,7 +812,7 @@ function App() {
         {page === 'squad' && <SquadPage owned={owned} squad={squad} setSquad={updateSquad} teamRating={teamRating} chemistry={chemistry} profile={profile} onGoClub={() => setPage('club')} />}
         {page === 'store' && <StorePage coins={coins} level={level} dailyReadyAt={dailyReadyAt} iconPity={iconPity} onBuyPack={purchasePack} />}
         {page === 'club' && <ClubPage owned={owned} squad={squad} setSquad={updateSquad} newCardIds={newCardIds} onSell={quickSell} onUpgrade={upgradeCard} />}
-        {page === 'arena' && <ArenaPage teamRating={teamRating} chemistry={chemistry} perks={perks} league={league} setLeague={applyLeague} onWin={awardArenaWin} squad={squadDuelists} quests={quests} scrimWins={quests.day === dayKeyOf(Date.now()) ? quests.scrimWins : 0} onScrimmage={resolveScrimmage} />}
+        {page === 'arena' && <ArenaPage teamRating={teamRating} chemistry={chemistry} perks={perks} league={league} setLeague={applyLeague} onWin={awardArenaWin} squad={squadDuelists} ecosystem={ecosystem.teams} quests={quests} scrimWins={quests.day === dayKeyOf(Date.now()) ? quests.scrimWins : 0} onScrimmage={resolveScrimmage} />}
         {page === 'profile' && <ProfilePage profile={profile} setProfile={setProfile} managerXp={managerXp} trophies={league.trophies} />}
       </div>
     </main>
@@ -893,7 +920,7 @@ function Catalog({ ownedIds, newCardIds }: { ownedIds: Set<string>; newCardIds: 
   return <div className="catalog-view"><div className="catalog-note"><Gem size={15} /> Owned cards are shown in full color. Locked cards reveal their tier and player details once collected.</div>{catalogTiers.map((tier) => <section className="catalog-section" key={tier}><div className="catalog-heading"><div><div className="eyebrow" style={{ color: tierConfig[tier].color }}>{tier === 'Icon' ? 'ICON / MVP' : tier.toUpperCase()}</div><h3>{tier === 'Icon' ? 'Major legends' : tierConfig[tier].subtitle}</h3></div><span>{database.filter((card) => card.tier === tier && ownedIds.has(card.id)).length} / {database.filter((card) => card.tier === tier).length} collected</span></div><div className="catalog-grid">{database.filter((card) => card.tier === tier).map((card) => { const owned = ownedIds.has(card.id); const fresh = newCardIds.some((id) => owned && id.endsWith(`-${card.id}`)); return <div className="catalog-item" key={card.id}><FutCard card={card} locked={!owned} isNew={fresh} /><div className={`catalog-status ${owned ? 'owned' : ''}`}>{owned ? <><BadgeCheck size={12} /> Collected</> : <><LockKeyhole size={12} /> Not packed</>}</div></div>; })}</div></section>)}</div>;
 }
 
-function ArenaPage({ teamRating, chemistry, perks, league, setLeague, onWin, squad, quests, scrimWins, onScrimmage }: { teamRating: number; chemistry: number; perks: Perk[]; league: LeagueState; setLeague: (next: LeagueState) => void; onWin: (reward: number, xp: number, message?: string) => void; squad: Duelist[]; quests: QuestState; scrimWins: number; onScrimmage: (won: boolean) => void }) {
+function ArenaPage({ teamRating, chemistry, perks, league, setLeague, onWin, squad, quests, scrimWins, onScrimmage, ecosystem }: { teamRating: number; chemistry: number; perks: Perk[]; league: LeagueState; setLeague: (next: LeagueState) => void; onWin: (reward: number, xp: number, message?: string) => void; squad: Duelist[]; quests: QuestState; scrimWins: number; onScrimmage: (won: boolean) => void; ecosystem: EcoTeam[] }) {
   const [mode, setMode] = useState<'quick' | 'league'>('league');
   const [opponentId, setOpponentId] = useState('tier2');
   const [live, setLive] = useState(false);
@@ -911,6 +938,8 @@ function ArenaPage({ teamRating, chemistry, perks, league, setLeague, onWin, squ
   const [dayResult, setDayResult] = useState<LeagueDayResult | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [showRoadmap, setShowRoadmap] = useState(false);
+  const [browseDivision, setBrowseDivision] = useState<number | null>(null);
+  const [scoutTeam, setScoutTeam] = useState<EcoTeam | null>(null);
   const slotStartRef = useRef<number | null>(null);
 
   useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer); }, []);
@@ -995,22 +1024,68 @@ function ArenaPage({ teamRating, chemistry, perks, league, setLeague, onWin, squ
   </div>;
 
   const recapModal = dayResult ? <MatchRecapModal info={{ matches: [], coins: dayResult.coins, day: dayResult }} onClose={() => setDayResult(null)} /> : null;
-  const roadmap = showRoadmap ? <LeagueRoadmap current={league.division} onClose={() => setShowRoadmap(false)} /> : null;
+  const roadmap = showRoadmap ? <LeagueRoadmap current={league.division} onClose={() => setShowRoadmap(false)} onOpen={(division) => { setShowRoadmap(false); setBrowseDivision(division); }} /> : null;
   if (live || result) return <><ArenaLive broadcast={leagueLive} resultNote={resultNote} opponent={opponent} score={score} round={round} feed={feed} alive={alive} paused={paused} speed={speed} setSpeed={setSpeed} onPause={() => setPaused((current) => !current)} onRound={playRound} onSkip={() => finish(true, score.us >= score.them || score.them >= 13 ? score : { us: Math.max(score.us, 13), them: score.them })} result={result} onExit={() => { setLive(false); setResult(null); setLeagueLive(false); setScrimLive(false); slotStartRef.current = null; }} />{recapModal}</>;
   return <><PageTitle eyebrow="COMPETITIVE PLAY" title="Play Arena" subtitle="League matches run automatically every hour at :30 — play friendlies and daily quests while you wait." /><div className="arena-mode-bar"><div className="club-tabs arena-mode-toggle"><button className={mode === 'quick' ? 'active' : ''} onClick={() => setMode('quick')}>Quick Match</button><button className={mode === 'league' ? 'active' : ''} onClick={() => setMode('league')}>League Season <span>16 Teams</span></button></div><span className="arena-mode-note">{mode === 'quick' ? 'Pick any opponent and play a single match.' : `Division ${league.division + 1} of 15 · ${division.name} · Season ${league.season}`}</span></div>
     {questPanel}
     {mode === 'quick' ? <div className="arena-lobby"><div className="arena-lobby-art"><div className="arena-radar"><div className="radar-ring one" /><div className="radar-ring two" /><div className="radar-cross" /><div className="arena-dot one" /><div className="arena-dot two" /><div className="arena-dot three" /></div><div className="arena-lobby-emblem"><Swords size={34} /></div></div><div className="arena-lobby-copy"><div className="eyebrow orange">ARENA MATCHMAKING</div><h2>Choose your opponent.</h2><p>Your active five, chemistry, and manager perks influence every round. Win the BO1 to collect the listed coin reward.</p><div className="arena-stat-line"><span><small>TEAM OVR</small><strong>{teamRating || '--'}</strong></span><span><small>CHEMISTRY</small><strong>{chemistry}</strong></span><span><small>XP ON WIN</small><strong>+{100 + quickOpponent.reward / 10}</strong></span></div><div className="opponent-list">{quickOpponents.map((item) => <button key={item.id} className={`opponent-option ${opponentId === item.id ? 'selected' : ''}`} onClick={() => setOpponentId(item.id)}><span className={`opponent-tier ${item.color}`}>{item.ovr}</span><span><strong>{item.name}</strong><small>{item.ovr} OVR AI opponent</small></span><b><Coins size={13} /> +{item.reward.toLocaleString()}</b></button>)}</div><button className="primary-button arena-start" onClick={() => beginMatch('quick')}><Play size={16} fill="currentColor" /> START MATCH</button><button className="league-ghost arena-scrim" onClick={() => beginMatch('scrim')}><Swords size={15} /> Play Scrimmage (Friendly) <span>{scrimWins}/{SCRIM_WIN_CAP} paid wins</span></button></div></div>
     : <div className="league-shell"><div className="league-hero"><div className="league-rank-badge"><Crown size={20} /><strong>{league.division + 1}</strong><span>DIVISION</span></div><div className="league-hero-copy"><div className="eyebrow orange">DIVISION {league.division + 1} OF 15 · {seasonLabel(league.season).toUpperCase()} · ENDS IN {seasonCountdown(Date.now()).toUpperCase()}</div><h2>{division.name}</h2><p>16-team league · 24 hourly matches per day · Opponent OVR {division.ovrMin}–{division.ovrMax}</p><div className="league-zone-legend"><span className="promotion">Promote 1–3 at 00:00</span><span className="relegation">Relegate 14–16 at 00:00</span><span><Coins size={12} /> +{LEAGUE_WIN_COINS} win / +{LEAGUE_LOSS_COINS} loss</span></div></div><div className="league-progress"><span>TODAY</span><strong>{Math.min(slot, SLOTS_PER_DAY)} / {SLOTS_PER_DAY}</strong><div className="league-progress-bar"><i style={{ width: `${Math.round((Math.min(slot, SLOTS_PER_DAY) / SLOTS_PER_DAY) * 100)}%` }} /></div><small>{leagueOpponentTeam ? `Next: ${leagueOpponentTeam.name} · ${leagueOpponentTeam.ovr} OVR` : 'Next opponent loading'}</small></div></div>
       <div className="match-clock-card"><div className="match-clock-copy"><div className="eyebrow orange">{liveReady ? 'LIVE BROADCAST WINDOW' : 'HOURLY LEAGUE SCHEDULE'}</div><strong>{liveReady ? 'League match is LIVE now — 2D tactical broadcast, 1x speed only.' : `Next League Match starts at ${slotClockLabel(nextHour)} (in ${countdown})`}</strong><small>{liveReady ? 'Stay on this page to watch the tactical map in real time.' : 'Matches simulate automatically at every :30 — even while you are offline.'}</small></div><div className="match-clock-right"><span className={`clock-big ${liveReady ? 'is-live' : ''}`}>{liveReady ? 'LIVE' : countdown}</span><small>{liveReady ? `Window closes ${String(liveHour ?? 0).padStart(2, '0')}:35` : `Kick-off ${slotClockLabel(nextHour)}`}</small></div></div>
-      <div className="league-actions"><button className="primary-button" onClick={() => beginMatch('scrim')}><Swords size={16} /> Play Scrimmage (Friendly)</button><button className="league-ghost" onClick={() => setShowRoadmap(true)}><LayoutGrid size={15} /> View League Roadmap</button><span className="league-prize"><Trophy size={13} /> Friendly wins +{SCRIM_WIN_COINS} · {scrimWins}/{SCRIM_WIN_CAP} paid wins today</span></div><div className="league-table"><div className="league-table-head"><span>#</span><span>CLUB</span><span>P</span><span>W</span><span>L</span><span>RD</span><span>PTS</span></div>{sortedTeams.map((team, index) => { const rank = index + 1; const zone = rank <= 3 ? 'promotion' : rank >= 14 ? 'relegation' : ''; return <div key={team.id} className={`league-row ${zone} ${team.id === 'user' ? 'is-user' : ''}`}><span className="league-rank">{rank}</span><span className="league-club"><b>{team.id === 'user' ? 'YOUR CLUB' : team.name}</b>{team.id === 'user' && <i>YOU</i>}<small>OVR {team.ovr || teamRating}</small></span><span>{team.played}</span><span>{team.wins}</span><span>{team.losses}</span><span>{team.roundDiff > 0 ? `+${team.roundDiff}` : team.roundDiff}</span><strong>{team.points}</strong></div>; })}</div></div>}
+      <div className="league-actions"><button className="primary-button" onClick={() => beginMatch('scrim')}><Swords size={16} /> Play Scrimmage (Friendly)</button><button className="league-ghost" onClick={() => setShowRoadmap(true)}><LayoutGrid size={15} /> View League Roadmap</button><span className="league-prize"><Trophy size={13} /> Friendly wins +{SCRIM_WIN_COINS} · {scrimWins}/{SCRIM_WIN_CAP} paid wins today</span></div><div className="league-table"><div className="league-table-head"><span>#</span><span>CLUB</span><span>P</span><span>W</span><span>L</span><span>RD</span><span>PTS</span></div>{sortedTeams.map((team, index) => { const rank = index + 1; const zone = rank <= 3 ? 'promotion' : rank >= 14 ? 'relegation' : ''; return <div key={team.id} className={`league-row ${zone} ${team.id === 'user' ? 'is-user' : ''}`}><span className="league-rank">{rank}</span><span className="league-club">{team.id === 'user' ? <b>YOUR CLUB</b> : <button className="team-link" onClick={() => setScoutTeam(ecoTeamById(ecosystem, team.id) ?? null)}>{team.name}</button>}{team.id === 'user' && <i>YOU</i>}<small>OVR {team.ovr || teamRating}</small></span><span>{team.played}</span><span>{team.wins}</span><span>{team.losses}</span><span>{team.roundDiff > 0 ? `+${team.roundDiff}` : team.roundDiff}</span><strong>{team.points}</strong></div>; })}</div></div>}
     {roadmap}
+    {browseDivision !== null && <DivisionBrowser division={browseDivision} ecosystem={ecosystem} onDivision={setBrowseDivision} onTeam={setScoutTeam} onClose={() => setBrowseDivision(null)} />}
+    {scoutTeam && <TeamRosterModal team={scoutTeam} onClose={() => setScoutTeam(null)} />}
     {recapModal}
   </>;
 }
 
 
-function LeagueRoadmap({ current, onClose }: { current: number; onClose: () => void }) {
-  return <div className="league-overlay" onClick={onClose}><div className="roadmap-modal" onClick={(event) => event.stopPropagation()}><button className="overlay-close" onClick={onClose}><X size={18} /></button><div className="eyebrow orange">LEAGUE ROADMAP</div><h2>15 divisions. One summit.</h2><p>Finish 1–3 to promote, 14–16 to relegate. Every win pays 150 coins; division titles pay the season prize.</p><div className="roadmap-list">{divisions.map((item, index) => ({ ...item, index })).reverse().map((item) => <div key={item.name} className={`roadmap-row ${item.index === current ? 'current' : ''} ${item.index < current ? 'cleared' : ''}`}><span className="roadmap-badge">{item.index === divisions.length - 1 ? <Crown size={15} /> : item.index + 1}</span><div><strong>{item.name}</strong><small>OVR {item.ovrMin}–{item.ovrMax} · 1–3 Promotion</small></div><b><Coins size={12} /> {item.reward.toLocaleString()}</b>{item.index === current && <i className="roadmap-current">CURRENT</i>}</div>)}</div></div></div>;
+function LeagueRoadmap({ current, onClose, onOpen }: { current: number; onClose: () => void; onOpen: (division: number) => void }) {
+  return <div className="league-overlay" onClick={onClose}><div className="roadmap-modal" onClick={(event) => event.stopPropagation()}><button className="overlay-close" onClick={onClose}><X size={18} /></button><div className="eyebrow orange">LEAGUE ROADMAP</div><h2>15 divisions. One summit.</h2><p>Finish 1–3 to promote, 14–16 to relegate. Click any division to scout its 16 clubs — including divisions you have not reached yet.</p><div className="roadmap-list">{divisions.map((item, index) => ({ ...item, index })).reverse().map((item) => <button key={item.name} className={`roadmap-row ${item.index === current ? 'current' : ''} ${item.index < current ? 'cleared' : ''}`} onClick={() => onOpen(item.index)}><span className="roadmap-badge">{item.index === divisions.length - 1 ? <Crown size={15} /> : item.index + 1}</span><div><strong>{item.name}</strong><small>OVR {item.ovrMin}–{item.ovrMax} · 1–3 Promotion</small></div><b><Coins size={12} /> {item.reward.toLocaleString()}</b>{item.index === current && <i className="roadmap-current">CURRENT</i>}<ChevronRight size={15} className="roadmap-open" /></button>)}</div></div></div>;
+}
+
+function DivisionBrowser({ division, ecosystem, onDivision, onTeam, onClose }: { division: number; ecosystem: EcoTeam[]; onDivision: (division: number) => void; onTeam: (team: EcoTeam) => void; onClose: () => void }) {
+  const info = divisions[division];
+  const table = ecoTeamsInDivision(ecosystem, division);
+  return <div className="league-overlay division-overlay" onClick={onClose}><div className="division-modal" onClick={(event) => event.stopPropagation()}>
+    <button className="overlay-close" onClick={onClose}><X size={18} /></button>
+    <div className="division-modal-head">
+      <div className="division-modal-copy"><div className="eyebrow orange">DIVISION {division + 1} OF 15 · {table.length} CLUBS</div><h2>{info.name}</h2><p>OVR {info.ovrMin}–{info.ovrMax} · Season prize <Coins size={12} /> {info.reward.toLocaleString()} · Click any club to open its scouting report.</p></div>
+      <div className="division-switch"><button onClick={() => onDivision(Math.max(0, division - 1))} disabled={division === 0} aria-label="Lower division">−</button><span><b>{division + 1}</b><small>/ 15</small></span><button onClick={() => onDivision(Math.min(divisions.length - 1, division + 1))} disabled={division === divisions.length - 1} aria-label="Higher division">+</button></div>
+    </div>
+    <div className="league-table division-table">
+      <div className="league-table-head"><span>#</span><span>CLUB</span><span>P</span><span>W</span><span>L</span><span>RD</span><span>PTS</span></div>
+      {table.map((team, index) => { const rank = index + 1; const zone = rank <= 3 ? 'promotion' : rank >= 14 ? 'relegation' : ''; return <div key={team.id} className={`league-row ${zone}`}>
+        <span className="league-rank">{rank}</span>
+        <span className="league-club"><button className="team-link" onClick={() => onTeam(team)}>{team.name}</button><small>OVR {team.ovr} · FORM {team.form.length ? team.form.join('-') : '—'}</small></span>
+        <span>{team.played}</span><span>{team.wins}</span><span>{team.losses}</span><span>{team.roundDiff > 0 ? `+${team.roundDiff}` : team.roundDiff}</span><strong>{team.points}</strong>
+      </div>; })}
+      {!table.length && <div className="division-empty">No clubs registered in this division yet.</div>}
+    </div>
+    <div className="division-note"><span className="promotion">1–3 promote at 00:00</span><span className="relegation">14–16 relegate at 00:00</span><span>All 15 divisions move every midnight</span></div>
+  </div></div>;
+}
+
+function TeamRosterModal({ team, onClose }: { team: EcoTeam; onClose: () => void }) {
+  const roster = teamRoster(team);
+  const average = teamAvgOvr(team);
+  const divisionInfo = divisions[team.division];
+  return <div className="league-overlay roster-overlay" onClick={onClose}><div className="roster-modal" onClick={(event) => event.stopPropagation()}>
+    <button className="overlay-close" onClick={onClose}><X size={18} /></button>
+    <div className="roster-head">
+      <div className="roster-badge" style={{ '--tier-color': tierConfig[teamTier(average)].color } as React.CSSProperties}><span>DIV {team.division + 1}</span><strong>{average}</strong><small>TEAM OVR</small></div>
+      <div className="roster-head-copy"><div className="eyebrow orange">TEAM ROSTER &amp; SCOUTING</div><h2>{team.name}</h2><p>{divisionInfo.name} · Division {team.division + 1} of 15 · {team.wins}W–{team.losses}L · {team.roundDiff >= 0 ? '+' : ''}{team.roundDiff} round diff</p>
+        <div className="roster-form"><span>RECENT FORM</span>{(team.form.length ? team.form : ['W']).map((entry, index) => <b key={`${entry}-${index}`} className={entry === 'W' ? 'win' : 'loss'}>{entry}</b>)}</div>
+      </div>
+    </div>
+    <div className="roster-grid">{roster.map((player) => { const tier = teamTier(player.ovr); const config = tierConfig[tier]; return <div key={player.name} className="roster-card" style={{ '--tier-color': config.color, '--tier-soft': config.soft } as React.CSSProperties}>
+      <div className="roster-card-top"><span className="roster-tier">{tier}</span><span className="roster-role">{player.role}</span></div>
+      <strong className="roster-nick">{player.name}</strong>
+      <div className="roster-ovr"><b>{player.ovr}</b><small>OVR</small></div>
+      <div className="roster-stats"><span>AIM<b>{player.aim}</b></span><span>RFL<b>{player.rfl}</b></span><span>SNS<b>{player.sns}</b></span><span>CLT<b>{player.clt}</b></span></div>
+    </div>; })}</div>
+    <div className="roster-foot"><span><Shield size={13} /> {team.played} matches played this season</span><span>Ranks 1–3 promote · 14–16 relegate at 00:00</span></div>
+  </div></div>;
 }
 
 function MatchRecapModal({ info, onClose }: { info: { matches: LeagueMatchLog[]; coins: number; day: LeagueDayResult | null }; onClose: () => void }) {
