@@ -127,7 +127,7 @@ const divisionMeta: { name: string; reward: number }[] = [
   { name: 'Global Elite', reward: 100000 },
 ];
 
-// OVR bands mirror the real 250-player world database, so every division's clubs
+// OVR bands mirror the real 1,195-player database, so every division's clubs
 // (real or filler) sit in one coherent, monotonic strength ladder.
 const divisions: Division[] = divisionMeta.map((meta, index) => {
   const [ovrMin, ovrMax] = DIVISION_BANDS[index] ?? [58, 60];
@@ -470,7 +470,7 @@ const roleFromEco = (role: string): Role => (role === 'Support' ? 'Lurker' : rol
 const tierFromOvr = (ovr: number): Tier =>
   ovr >= 93 ? 'Icon' : ovr >= 85 ? 'Star' : ovr >= 75 ? 'Gold' : ovr >= 65 ? 'Silver' : 'Bronze';
 
-// 400 real players, straight from the world database (Top 80 clubs ranking curve).
+// 1,195 real players across 239 real clubs (elite, silver and bronze databases).
 const playerSeed: Array<[string, string, string, Role, number, Tier]> = WORLD_PLAYERS.map((player) => [
   player.name,
   player.team,
