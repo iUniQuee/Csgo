@@ -57,6 +57,8 @@ import {
   UserRound,
   Users,
   X,
+  Plus,
+  Check,
 } from 'lucide-react';
 
 type Page = 'squad' | 'store' | 'club' | 'arena' | 'profile';
@@ -1188,7 +1190,13 @@ function ClubPage({ owned, squad, setSquad, newCardIds, onSell, onUpgrade }: { o
 
 function Catalog({ ownedIds, newCardIds }: { ownedIds: Set<string>; newCardIds: string[] }) {
   const catalogTiers: Tier[] = ['Icon', 'Star', 'Gold', 'Silver', 'Bronze'];
-  return <div className="catalog-view"><div className="catalog-note"><Gem size={15} /> Owned cards are shown in full color. Locked cards reveal their tier and player details once collected.</div>{catalogTiers.map((tier) => <section className="catalog-section" key={tier}><div className="catalog-heading"><div><div className="eyebrow" style={{ color: tierConfig[tier].color }}>{tier === 'Icon' ? 'ICON / MVP' : tier.toUpperCase()}</div><h3>{tier === 'Icon' ? 'Major legends' : tierConfig[tier].subtitle}</h3></div><span>{database.filter((card) => card.tier === tier && ownedIds.has(card.id)).length} / {database.filter((card) => card.tier === tier).length} collected</span></div><div className="catalog-grid">{database.filter((card) => card.tier === tier).map((card) => { const owned = ownedIds.has(card.id); const fresh = newCardIds.some((id) => owned && id.endsWith(`-${card.id}`)); return <div className="catalog-item" key={card.id}><FutCard card={card} locked={!owned} isNew={fresh} /><div className={`catalog-status ${owned ? 'owned' : ''}`}>{owned ? <><BadgeCheck size={12} /> Collected</> : <><LockKeyhole size={12} /> Not packed</>}</div></div>; })}</div></section>)}</div>;
+  const [shownCount, setShownCount] = useState(24);
+  const loadMore = (): void => { setShownCount(Math.min(database.length, shownCount + 24)); };
+  const hasMore = catalogTiers.some((tier) => database.filter((card) => card.tier === tier).length > shownCount);
+  useEffect(() => { setShownCount(24); }, [ownedIds, newCardIds]);
+  return <div className="catalog-view"><div className="catalog-note"><Gem size={15} /> Owned cards are shown in full color. Locked cards reveal their tier and player details once collected.</div>{catalogTiers.map((tier) => { const tierPool = database.filter((card) => card.tier === tier); const tierShown = Math.min(shownCount, (tierPool?.length ?? 0)); const tierSlice = tierPool?.slice(0, tierShown) ?? []; return <section className="catalog-section" key={tier}><div className="catalog-heading"><div><div className="eyebrow" style={{ color: tierConfig[tier].color }}>{tier === 'Icon' ? 'ICON / MVP' : tier.toUpperCase()}</div><h3>{tier === 'Icon' ? 'Major legends' : tierConfig[tier].subtitle}</h3></div><span>{database.filter((card) => card.tier === tier && ownedIds.has(card.id)).length} / {tierPool.length} collected</span></div><div className="catalog-grid">{tierSlice.map((card) => { const owned = ownedIds.has(card.id); const fresh = newCardIds.some((id) => owned && id.endsWith(`-${card.id}`)); return <div className="catalog-item" key={card.id}><FutCard card={card} locked={!owned} isNew={fresh} /><div className={`catalog-status ${owned ? 'owned' : ''}`}>{owned ? <><BadgeCheck size={12} /> Collected</> : <><LockKeyhole size={12} /> Not packed</>}</div></div>; })}</div></section>; }).reduce((acc: React.ReactElement | undefined, section: React.ReactElement) => acc === undefined ? section : <>{acc}{section}</>, undefined)}
+  {hasMore ? <button className="catalog-show-more" onClick={loadMore}><Plus size={14} /> Show More <span>+24</span></button> : <div className="catalog-show-more catalog-show-more-empty"><Check size={14} /> All cards loaded</div>}
+  </div>;
 }
 
 function ArenaPage({ teamRating, chemistry, perks, league, setLeague, onWin, squad, quests, scrimWins, onScrimmage, ecosystem }: { teamRating: number; chemistry: number; perks: Perk[]; league: LeagueState; setLeague: (next: LeagueState) => void; onWin: (reward: number, xp: number, message?: string) => void; squad: Duelist[]; quests: QuestState; scrimWins: number; onScrimmage: (won: boolean) => void; ecosystem: EcoTeam[] }) {
