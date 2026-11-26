@@ -326,11 +326,16 @@
 /* Store: 9-pack grid, buy-5x and Icon pity */
 .pack-buy-row { display: flex; align-items: stretch; gap: .5rem; margin-top: 1.25rem; }
 .pack-buy-row .buy-button { margin-top: 0; flex: 1 1 0%; min-width: 0; padding-left: .5rem; padding-right: .5rem; }
-.pack-buy-row .buy-bulk { flex: 0 0 auto; flex-direction: column; gap: .15rem; border: 1px solid rgba(251,146,60,.45); background: rgba(251,146,60,.12); color: #fdba74; padding: .45rem .65rem; }
-.pack-buy-row .buy-bulk span { font-size: 10px; font-weight: 900; letter-spacing: .06em; color: #fdba74; }
-.pack-buy-row .buy-bulk b { font-size: 9px; font-weight: 700; color: #fbbf24; }
-.pack-buy-row .buy-bulk:hover:not(:disabled) { background: rgba(251,146,60,.22); }
-.pack-buy-row .buy-bulk:disabled { opacity: .45; cursor: not-allowed; }
+
+/* Bronze / Silver / Gold packs: stack the single-buy and 5x-buy buttons so
+   neither is ever squeezed or cut off. */
+.pack-buy-row.has-bulk { flex-direction: column; align-items: stretch; width: 100%; gap: .5rem; }
+.pack-buy-row.has-bulk .buy-button { flex: 0 0 auto; width: 100%; min-width: 0; padding: .75rem 1rem; white-space: nowrap; }
+.pack-buy-row.has-bulk .buy-bulk { flex: 0 0 auto; flex-direction: row; align-items: center; justify-content: center; gap: .4rem; width: 100%; border: 1px solid rgba(148,163,184,.28); background: rgba(15,23,42,.78); color: #cbd5e1; padding: .625rem 1rem; white-space: nowrap; }
+.pack-buy-row.has-bulk .buy-bulk span { font-size: 10px; font-weight: 900; letter-spacing: .06em; color: #cbd5e1; }
+.pack-buy-row.has-bulk .buy-bulk b { font-size: 10px; font-weight: 800; color: #fbbf24; }
+.pack-buy-row.has-bulk .buy-bulk:hover:not(:disabled) { background: rgba(30,41,59,.95); border-color: rgba(251,146,60,.45); }
+.pack-buy-row.has-bulk .buy-bulk:disabled { opacity: .45; cursor: not-allowed; }
 
 .pity-strip { margin-top: 1.25rem; display: flex; align-items: center; gap: .65rem; border-radius: .75rem; border: 1px solid rgba(251,191,36,.3); background: rgba(251,191,36,.07); padding: .7rem 1rem; font-size: .7rem; color: #fde68a; }
 .pity-strip svg { flex-shrink: 0; color: #fbbf24; }
