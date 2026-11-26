@@ -38,12 +38,12 @@ export type EcoState = {
 export type OvrRange = { min: number; max: number };
 
 export const ECO_STORAGE_KEY = 'cs2-ecosystem';
-const ECO_STATE_VERSION = 2;
+const ECO_STATE_VERSION = 3;
 export const ECO_DIVISIONS = 15;
 export const ECO_TEAMS_PER_DIVISION = 16;
 
 /* ------------------------------------------------------------------ */
-/* Real world database: 50 clubs x exact 5-man roster (Nov 2026)       */
+/* Real world database: 80 clubs x exact 5-man roster (Nov 2026)       */
 /* Strongest club first, OVR follows the Top 250 world ranking curve.  */
 /* ------------------------------------------------------------------ */
 
@@ -84,22 +84,52 @@ export const WORLD_DB: Record<string, WorldEntry[]> = {
   NRG: [['Grim', 'Rifler', 80, 'US'], ['hallzerk', 'AWPer', 79, 'NO'], ['nitr0', 'IGL', 77, 'US'], ['Jeorge', 'Entry', 74, 'US'], ['Sonic', 'Support', 74, 'US']],
   '3DMAX': [['Maka', 'IGL', 79, 'FR'], ['Lucky', 'AWPer', 77, 'FR'], ['Graviti', 'Rifler', 77, 'FR'], ['misutaaa', 'Entry', 75, 'FR'], ['Kursy', 'Support', 72, 'FR']],
   ATOX: [['MiQ', 'AWPer', 78, 'MN'], ['kabal', 'IGL', 77, 'MN'], ['dobu', 'Rifler', 75, 'MN'], ['Zesta', 'Entry', 74, 'MN'], ['AccuracyTG', 'Support', 73, 'MN']],
-  'Chinggis Warriors': [['sk0R', 'Rifler', 78, 'MN'], ['cool4st', 'AWPer', 76, 'MN'], ['ROUX', 'Entry', 74, 'MN'], ['tikuak', 'IGL', 73, 'MN'], ['fury5k', 'Support', 73, 'MN']],
+  'Chinggis Warriors': [['sk0R', 'Rifler', 78, 'MN'], ['cool4st', 'AWPer', 76, 'MN'], ['ROUX', 'Entry', 74, 'MN'], ['tikuak', 'IGL', 73, 'MN'], ['yAmi', 'Support', 73, 'MN']],
   'BC.Game': [['s1mple', 'AWPer', 82, 'UA'], ['Magisk', 'IGL', 77, 'DK'], ['Senzu', 'Rifler', 74, 'MN'], ['mzinho', 'Entry', 72, 'MN'], ['asap', 'Support', 66, 'SE']],
   FlyQuest: [['jks', 'IGL', 78, 'AU'], ['INS', 'Rifler', 75, 'AU'], ['aliStair', 'AWPer', 74, 'AU'], ['Vexite', 'Entry', 72, 'AU'], ['nettik', 'Support', 69, 'AU']],
-  BESTIA: [['drop', 'AWPer', 75, 'BR'], ['kauez', 'Rifler', 74, 'BR'], ['buda', 'Support', 73, 'AR'], ['cass1n', 'Entry', 72, 'AR'], ['timo', 'IGL', 71, 'BR']],
+  BESTIA: [['Noktse', 'AWPer', 74, 'AR'], ['zock', 'Rifler', 73, 'BR'], ['buda', 'Support', 73, 'AR'], ['cass1n', 'Entry', 72, 'AR'], ['timo', 'IGL', 71, 'BR']],
   Metizport: [['Plopski', 'Rifler', 76, 'SE'], ['stanislaw', 'IGL', 75, 'CA'], ['MaiL09', 'AWPer', 72, 'SE'], ['forsyy', 'Entry', 71, 'SE'], ['F1KU', 'Support', 68, 'PL']],
   FOKUS: [['podi', 'AWPer', 75, 'SE'], ['ztr', 'IGL', 73, 'SE'], ['Matheos', 'Rifler', 72, 'GR'], ['Banjo', 'Entry', 70, 'SE'], ['jocab', 'Support', 69, 'SE']],
   Betclic: [['ultimate', 'AWPer', 66, 'PT'], ['Prism', 'Rifler', 65, 'PT'], ['Qlocuu', 'Entry', 64, 'PL'], ['Demho', 'IGL', 63, 'PL'], ['ex1st', 'Support', 62, 'PL']],
   PRIVATE: [['1eeR', 'AWPer', 65, 'BY'], ['H4SAN4TOR', 'Rifler', 64, 'RU'], ['sh1nejezzz', 'Entry', 63, 'RU'], ['sowalio', 'IGL', 62, 'RU'], ['z1k4', 'Support', 61, 'BY']],
   'Iberian Soul': [['alex', 'AWPer', 64, 'ES'], ['dav1g', 'Rifler', 63, 'ES'], ['mopoz', 'IGL', 62, 'ES'], ['sausol', 'Entry', 61, 'ES'], ['Ag1l', 'Support', 60, 'PT']],
-  'Fluxo W7M': [['dav1deuS', 'AWPer', 63, 'BR'], ['exit', 'Rifler', 62, 'BR'], ['kye', 'Entry', 61, 'BR'], ['Ltz', 'IGL', 60, 'BR'], ['zevy', 'Support', 59, 'BR']],
+  'Fluxo W7M': [['nak', 'AWPer', 63, 'BR'], ['exit', 'Rifler', 62, 'BR'], ['kye', 'Entry', 61, 'BR'], ['Ltz', 'IGL', 60, 'BR'], ['zevy', 'Support', 59, 'BR']],
   Sangal: [['R4DYX', 'Rifler', 62, 'TR'], ['Joey', 'AWPer', 61, 'TR'], ['adamS', 'IGL', 60, 'TR'], ['bnox', 'Entry', 59, 'TR'], ['puuha', 'Support', 58, 'TR']],
   UNiTY: [['2high', 'AWPer', 61, 'CZ'], ['Dytor', 'Rifler', 60, 'CZ'], ['KWERTZZ', 'Entry', 59, 'CZ'], ['M1key', 'IGL', 58, 'CZ'], ['Sn0w', 'Support', 57, 'CZ']],
   Nexus: [['s0und', 'AWPer', 60, 'RO'], ['HOLY', 'Rifler', 59, 'RO'], ['shield', 'Entry', 58, 'RO'], ['fNk', 'IGL', 57, 'RO'], ['Nexius', 'Support', 56, 'RO']],
   '5star': [['rate', 'AWPer', 59, 'BR'], ['NEUZ', 'Rifler', 58, 'BR'], ['ariucle', 'Entry', 57, 'BR'], ['clouden', 'IGL', 56, 'BR'], ['hoolig4n', 'Support', 55, 'BR']],
   'Spirit Academy': [['k0gaSs', 'AWPer', 58, 'RU'], ['Kiryasoo', 'Rifler', 57, 'RU'], ['Netrix', 'Entry', 56, 'RU'], ['s1nside', 'IGL', 55, 'RU'], ['VILBy', 'Support', 55, 'RU']],
   'NAVI Junior': [['FAZERY', 'AWPer', 57, 'UA'], ['kodak', 'Rifler', 56, 'UA'], ['MahaR', 'Entry', 55, 'UA'], ['skizzyee', 'IGL', 55, 'UA'], ['yoki', 'Support', 55, 'UA']],
+  'MOUZ NXT': [['ay0k', 'AWPer', 66, 'LV'], ['Nikodeon', 'IGL', 64, 'DK'], ['deeN', 'Support', 63, 'LV'], ['eSx', 'Entry', 61, 'FR'], ['mixer', 'Rifler', 60, 'CN']],
+  'BIG Academy': [['Maden', 'IGL', 65, 'ME'], ['prosus', 'Entry', 64, 'DE'], ['D0nii', 'Rifler', 63, 'UA'], ['Hrdina', 'Support', 61, 'SK'], ['aZe', 'AWPer', 60, 'TM']],
+  'The Huns': [['controlez', 'IGL', 73, 'MN'], ['Bart4k', 'Rifler', 74, 'MN'], ['Cozen', 'Entry', 70, 'MN'], ['bexyz', 'Support', 72, 'MN'], ['DarkMeister', 'AWPer', 69, 'MN']],
+  Eruption: [['COLDavaa', 'IGL', 67, 'MN'], ['MagnumZ', 'AWPer', 72, 'MN'], ['fury5k', 'Rifler', 70, 'MN'], ['xenization', 'Entry', 68, 'MN'], ['sideffect', 'Support', 69, 'MN']],
+  'IHC Esports': [['Skywalker', 'IGL', 63, 'MN'], ['rhittacrit', 'AWPer', 68, 'MN'], ['Aapestt', 'Rifler', 66, 'MN'], ['NEUZ', 'Entry', 65, 'MN'], ['QQLIGHTNING', 'Support', 64, 'MN']],
+  'Lynn Vision': [['Westmelon', 'IGL', 77, 'CN'], ['z4kr', 'AWPer', 82, 'CN'], ['Starry', 'Rifler', 82, 'CN'], ['EmiliaQAQ', 'Entry', 78, 'CN'], ['C4LLM3SU3', 'Support', 79, 'CN']],
+  'Rare Atom': [['3gl', 'IGL', 67, 'CN'], ['Summer', 'AWPer', 72, 'CN'], ['ChildKing', 'Rifler', 70, 'CN'], ['L1haNg', 'Entry', 71, 'CN'], ['chengking', 'Support', 69, 'CN']],
+  Monte: [['sdy', 'IGL', 80, 'UA'], ['mantuu', 'AWPer', 77, 'PL'], ['CYPHER', 'Rifler', 76, 'GB'], ['br0', 'Entry', 74, 'DK'], ['st0m4k', 'Support', 73, 'UA']],
+  SINNERS: [['beastik', 'IGL', 78, 'CZ'], ['MoDo', 'AWPer', 80, 'RO'], ['SHOCK', 'Rifler', 79, 'CZ'], ['stressarN', 'Entry', 79, 'MK'], ['kisserek', 'Support', 76, 'PL']],
+  '9z': [['max', 'IGL', 79, 'UY'], ['history', 'AWPer', 79, 'BR'], ['dgt', 'Rifler', 77, 'UY'], ['HUASOPEEK', 'Entry', 78, 'CL'], ['luchov', 'Support', 76, 'AR']],
+  'RED Canids': [['reNTU', 'IGL', 72, 'BR'], ['drop', 'AWPer', 78, 'BR'], ['dav1deuS', 'Rifler', 79, 'CL'], ['chayJESUS', 'Entry', 74, 'BR'], ['kauez', 'Support', 73, 'BR']],
+  OG: [['bodyy', 'IGL', 73, 'FR'], ['spooke', 'AWPer', 74, 'SE'], ['Chucky', 'Rifler', 71, 'BE'], ['Ex3rcice', 'Entry', 72, 'FR'], ['nut nut', 'Support', 70, 'DK']],
+  'Virtus.pro': [['mir', 'IGL', 81, 'RU'], ['b1st', 'AWPer', 80, 'RU'], ['Patsi', 'Rifler', 78, 'RU'], ['AquaRS', 'Entry', 77, 'RU'], ['tO0RO', 'Support', 78, 'RU']],
+  Wildcard: [['nEMANHA', 'IGL', 76, 'RS'], ['fr3nd', 'AWPer', 76, 'PL'], ['cxzi', 'Rifler', 75, 'US'], ['HexT', 'Entry', 77, 'CA'], ['reck', 'Support', 75, 'US']],
+  '9INE': [['raalz', 'IGL', 76, 'DK'], ['flayy', 'AWPer', 77, 'PL'], ['kraghen', 'Rifler', 75, 'DK'], ['rim3', 'Entry', 74, 'TR'], ['b1elany', 'Support', 76, 'PL']],
+  HOTU: [['kade0', 'IGL', 77, 'KZ'], ['frontales', 'AWPer', 75, 'RU'], ['n0rb3r7', 'Rifler', 79, 'RU'], ['mizu', 'Entry', 78, 'RU'], ['dwushka', 'Support', 76, 'RU']],
+  Luminosity: [['yxngstxr', 'IGL', 72, 'SE'], ['afro', 'AWPer', 74, 'FR'], ['Rainwaker', 'Rifler', 73, 'BG'], ['AZUWU', 'Entry', 71, 'GB'], ['lux', 'Support', 72, 'BR']],
+  Galorys: [['PKL', 'IGL', 69, 'BR'], ['detr0ittJ', 'AWPer', 74, 'BR'], ['gbb', 'Rifler', 73, 'BR'], ['tomate', 'Entry', 73, 'BR'], ['DeStiNy', 'Support', 72, 'BR']],
+  'DENDELE CS': [['gafolo', 'IGL', 76, 'BR'], ['maxxkor', 'AWPer', 78, 'AR'], ['koala', 'Rifler', 75, 'BR'], ['rdnzao', 'Entry', 74, 'BR'], ['doc', 'Support', 73, 'BR']],
+  'Phantom Esports': [['TMB', 'IGL', 74, 'DK'], ['nicoodoz', 'AWPer', 76, 'DK'], ['Kylar', 'Rifler', 73, 'PL'], ['KEi', 'Entry', 72, 'PL'], ['Kunai', 'Support', 71, 'PL']],
+  'WhiteBIT Team': [['Psycho', 'IGL', 75, 'UA'], ['s4ltovsk1yy', 'AWPer', 74, 'UA'], ['DemQQ', 'Entry', 75, 'UA'], ['Smash', 'Rifler', 73, 'UA'], ['tyr1k', 'Support', 71, 'UA']],
+  Alliance: [['twist', 'IGL', 72, 'SE'], ['eraa', 'AWPer', 71, 'SE'], ['bobeksde', 'Rifler', 71, 'SE'], ['avid', 'Entry', 69, 'SE'], ['upE', 'Support', 68, 'SE']],
+  'Inner Circle': [['3ippoch', 'IGL', 67, 'UA'], ['headtr1ck', 'AWPer', 75, 'UA'], ['cptkurtka023', 'Rifler', 71, 'UA'], ['zeRRoFIX', 'Entry', 72, 'UA'], ['Dawy', 'Support', 70, 'UA']],
+  'Misa Esports': [['emstar', 'IGL', 70, 'TR'], ['souv', 'AWPer', 66, 'TR'], ['cyber', 'Rifler', 69, 'TR'], ['Zuedsta', 'Entry', 68, 'TR'], ['h0kz', 'Support', 67, 'TR']],
+  aimclub: [['zewts', 'IGL', 67, 'RO'], ['XELLOW', 'AWPer', 71, 'RO'], ['ragga', 'Rifler', 66, 'RO'], ['mhN1', 'Entry', 68, 'RO'], ['ADRON', 'Support', 65, 'RO']],
+  'WRAITH PCIFIC': [['eNs', 'IGL', 71, 'TR'], ['lugseN', 'AWPer', 70, 'TR'], ['scolleN', 'Rifler', 69, 'TR'], ['jresy', 'Entry', 68, 'TR'], ['oyesil', 'Support', 67, 'TR']],
+  BOJONG: [['Villeboe', 'IGL', 66, 'FI'], ['ArtwOo', 'AWPer', 65, 'FI'], ['BlNGB0NG', 'Rifler', 63, 'FI'], ['stunt', 'Entry', 64, 'FI'], ['jkzin', 'Support', 62, 'FI']],
+  'paiN Academy': [['tsug', 'IGL', 63, 'BR'], ['mello', 'AWPer', 65, 'BR'], ['HaZze', 'Rifler', 61, 'BR'], ['Fkm', 'Entry', 62, 'BR'], ['glimmz', 'Support', 60, 'BR']],
+  'G2 Ares': [['SHiNE', 'IGL', 71, 'SE'], ['Junyme', 'AWPer', 68, 'DK'], ['hitori', 'Rifler', 67, 'UZ'], ['yksjupe', 'Entry', 66, 'FI'], ['TMKj', 'Support', 65, 'PT']],
+  'RED Canids Academy': [['rafa', 'IGL', 64, 'BR'], ['n1cks', 'AWPer', 66, 'BR'], ['gtw', 'Rifler', 63, 'BR'], ['sanc', 'Entry', 62, 'BR'], ['FasteR', 'Support', 61, 'BR']],
 };
 
 export const WORLD_TEAMS: string[] = Object.keys(WORLD_DB);
@@ -120,105 +150,78 @@ const worldAvgOvr = (name: string): number => {
 /* Team names, strongest division first (index 0 = Division 15)        */
 /* ------------------------------------------------------------------ */
 
-const ELITE = [
-  'FURIA', 'MOUZ', 'Team Spirit', 'Team Vitality', 'Team Falcons', 'Aurora', 'BetBoom Team', 'NAVI',
-  'Nemiga', 'The MongolZ', 'FUT Esports', 'G2 Esports', 'PARIVISION', '1WIN', 'Legacy', 'MIBR',
+/** Every club in the world database, strongest five-man average first. */
+const WORLD_BY_OVR: string[] = [...WORLD_TEAMS].sort(
+  (a, b) => worldAvgOvr(b) - worldAvgOvr(a) || a.localeCompare(b),
+);
+
+/** Real professional orgs for Divisions 1-10 (generated line-ups, real club names). */
+const LEGACY_ORGS: string[] = [
+  'Cloud9', 'Complexity', 'ENCE', 'Apeks', 'ECSTATIC', 'TALON', 'ODDIK', 'Gods Reign',
+  'Grayhound', 'Young Ninjas', 'FURIA Academy', 'Passion UA', 'Betera', 'Sashi', 'Endpoint', 'Into the Breach',
+  'GODSENT', 'Entropiq', 'forZe', 'K23', 'Illuminar', 'Budapest Five', 'PACT', 'eSuba',
+  'Team Universe', 'Ambush Esports', 'Dynamo Eclot', 'Partizan', 'MASONIC', 'Sprout', 'Tricked', 'Viperio',
+  'GTZ Esports', 'Rogue', 'Forsaken', 'KOVA', 'Dignitas', 'Noble', 'Villainous', 'Reason Gaming',
+  'Wicked Gaming', 'Team BLVK', 'TeamSolid', 'Galo do Cerrado', 'Dusty Roots', 'Hype Gaming', 'Patins da Ferrari', 'Meta Gaming',
+  'Boca Juniors Gaming', 'Corinthians Esports', 'Fuscão', 'Flamengo Esports', 'Los Grandes', 'Vivo Keyd Stars', 'INTZ', 'Santos e-Sports',
+  'Cruzeiro Esports', 'Newhappy', 'Wings Up', 'Invictus Gaming', 'Survivor Gaming', 'Clutch Gaming', 'Ground Zero', 'Rooster',
+  'VERTEX', 'KZG', 'Mindfreak', 'SemperFi', 'DXA Esports', 'Bandits', 'Steel Helmet', 'TeamOne',
+  'Isurus', 'Case Esports', 'Movistar Riders', 'KOI', 'Bravos', 'Rebels Gaming', 'Zero Tenacity', 'ECLOT',
+  'Sampi', 'Enterprise', 'ALTERNATE aTTaX', 'W7M Esports', '100 Thieves', 'B4', 'O PLANO', '00NATION',
+  'Havan Liberty', 'SWS', 'MEIA NOITE', 'NomadS', 'JiJieHao', 'Bromo', 'Fenerbahçe', 'Galatasaray',
+  'Beşiktaş', 'SuperMassive Blaze', 'Dark Passage', 'Royal Bandits', 'Aurora Young Blud', 'VP.Prodigy', 'Team Secret', 'Team Empire',
+  'Winstrike', 'Gambit', 'Vega Squadron', 'pro100', 'Syman', 'Espada', 'Unique', 'Hard Legion',
+  'HellRaisers', 'FlipSid3', 'Quantum Bellator', 'Windigo', 'x-kom', 'AGO', 'Kinguin', 'H2k',
+  'Space Soldiers', 'Bpro', 'eXtatus', 'Fraternitas', 'LDLC', 'EnVyUs', 'Denial', 'eUnited',
+  'Splyce', 'Immortals', 'Tempo Storm', 'Misfits', 'Renegades', 'Swole Patrol', 'Lazarus', 'Rugratz',
+  'Bad News Bears', 'Party Astronauts', 'Rocket', 'Detonate', 'Triumph', 'Rebirth', 'High Coast', 'ATK',
+  'Extra Salt', 'ChocoCheck', 'Strife', 'Third Factor', 'mousesports', 'Copenhagen Flames', 'BLUEJAYS', 'EC Brugge',
+  'Guild Eagles', 'Twisted Minds', 'BDS', 'Heretics', 'GIANTX', 'SK Gaming', 'Nigma Galaxy', 'Queso',
+  'Giants', 'MAD Lions', 'x6tence', 'Cream Real Betis', 'Finest', 'Akuma', 'Project X', 'Lausanne', '6Y',
 ];
-
-const SUPREME_ELITE = [
-  'Team Liquid', '9z', 'Astralis', 'FaZe Clan', 'Eternal Fire', 'NiP', 'fnatic', 'M80',
-  'HEROIC', 'B8', 'Luminosity', 'GamerLegion', 'BIG', 'TYLOO', 'HOTU', 'Sangal',
-];
-
-const MAJOR_ELITE = [
-  'paiN Gaming', 'Wildcard', 'Lynn Vision', 'SINNERS', 'NRG', 'Imperial', 'ATOX', 'Chinggis Warriors',
-  'SAW', '3DMAX', 'Virtus.pro', 'Complexity', 'ENCE', 'OG', 'Cloud9', 'Sharks Esports',
-];
-
-const PRIME = [
-  'Fluxo', 'RED Canids', 'TeamOne', 'BESTIA', 'Isurus', 'W7M Esports', 'Case Esports', 'Movistar Riders',
-  'KOI', 'Bravos', 'Rebels Gaming', 'Zero Tenacity', 'ECLOT', 'Sampi', 'Enterprise', 'ALTERNATE aTTaX',
-];
-
-const EAGLE = [
-  'Apeks', 'Endpoint', 'Into the Breach', 'GODSENT', 'Entropiq', 'forZe', 'K23', 'Illuminar',
-  'Budapest Five', 'PACT', 'eSuba', 'Team Universe', 'Ambush Esports', 'Nexus', 'Dynamo Eclot', 'Partizan',
-];
-
-const PRO = [
-  'ECSTATIC', 'MASONIC', 'Sprout', 'Sashi', 'Tricked', 'Viperio', 'GTZ Esports', 'Rogue',
-  'Forsaken', 'KOVA', 'Dignitas', 'Noble', 'Villainous', 'Reason Gaming', 'Wicked Gaming', 'Team BLVK',
-];
-
-const WORLD_CLASS = [
-  'TeamSolid', 'ODDIK', 'Galo do Cerrado', 'Dusty Roots', 'Hype Gaming', 'Patins da Ferrari', 'Meta Gaming', 'Boca Juniors Gaming',
-  'Corinthians Esports', 'Fuscão', 'Flamengo Esports', 'Los Grandes', 'Vivo Keyd Stars', 'INTZ', 'Santos e-Sports', 'Cruzeiro Esports',
-];
-
-const SUPREME_LEGEND = [
-  'Rare Atom', 'Newhappy', 'Wings Up', 'Invictus Gaming', 'Survivor Gaming', 'Clutch Gaming', 'Ground Zero', 'Rooster',
-  'Grayhound', 'VERTEX', 'KZG', 'Mindfreak', 'SemperFi', 'DXA Esports', 'Bandits', 'Steel Helmet',
-];
-
-const ACADEMY_ORGS = [
-  'NAVI', 'Spirit', 'MOUZ', 'FURIA', 'The MongolZ', 'Vitality', 'G2', 'FaZe', 'Liquid', 'Astralis',
-  'NiP', 'fnatic', 'HEROIC', 'BIG', 'ENCE', 'paiN', 'Imperial', 'Complexity', 'Virtus.pro', '9z',
-  'MIBR', 'Legacy', 'BetBoom', 'Aurora', 'Falcons', 'TYLOO', 'Rare Atom', 'ATOX', 'Chinggis Warriors', 'SAW',
-  '3DMAX', 'GamerLegion', 'B8', 'Nemiga', 'PARIVISION', 'Wildcard', 'NRG', 'M80',
-];
-
-const ACADEMY_SUFFIXES = ['Academy', 'Junior', 'NXT', 'Youth', 'Prospects', 'Rising', 'Development', 'Talents', 'Reserve', 'Blue'];
-
-const academyLabel = (org: string): string => (org === 'The MongolZ' ? 'MongolZ' : org);
-
-const ACADEMY_TEAMS: string[] = (() => {
-  const names: string[] = [];
-  for (const suffix of ACADEMY_SUFFIXES) {
-    for (const org of ACADEMY_ORGS) {
-      names.push(`${academyLabel(org)} ${suffix}`);
-    }
-  }
-  return names;
-})();
-
-const TOP_DIVISIONS: string[][] = [ELITE, SUPREME_ELITE, MAJOR_ELITE, PRIME, EAGLE, PRO, WORLD_CLASS, SUPREME_LEGEND];
 
 /**
  * OVR window of each division (index 0 = Bronze / Division 1 ... 14 = Global Elite).
- * The real 250-player world database is spread across this ladder by each club's
- * true five-man average, so a top club averages ~86-92 and academy clubs sit at 55-64.
+ * Divisions 11-15 are the 80 fully-real clubs, so their windows are measured from
+ * the true five-man averages of each 16-club group. Divisions 1-10 sit below them.
  * Keep this in sync with the `divisions` table in App.tsx.
  */
-export const DIVISION_BANDS: [number, number][] = [
-  [55, 58], [59, 59], [60, 60], [61, 61], [62, 62], [63, 63], [64, 64],
-  [65, 66], [67, 68], [69, 70], [71, 72], [73, 74], [75, 77], [78, 82], [83, 92],
-];
+export const DIVISION_BANDS: [number, number][] = (() => {
+  const bands: [number, number][] = [
+    [55, 56], [55, 57], [56, 57], [56, 58], [57, 58],
+    [57, 59], [57, 60], [58, 60], [58, 61], [59, 62],
+  ];
+  for (let group = 4; group >= 0; group -= 1) {
+    const averages = WORLD_BY_OVR
+      .slice(group * ECO_TEAMS_PER_DIVISION, (group + 1) * ECO_TEAMS_PER_DIVISION)
+      .map(worldAvgOvr);
+    bands.push([Math.min(...averages), Math.max(...averages)]);
+  }
+  return bands;
+})();
 
 /** Names grouped by division index (0 = Bronze/Division 1 ... 14 = Global Elite). */
 const DIVISION_POOLS: string[][] = (() => {
-  const fillers = [...TOP_DIVISIONS.flat(), ...ACADEMY_TEAMS];
+  const pools: string[][] = Array.from({ length: ECO_DIVISIONS }, () => []);
   const used = new Set<string>();
-  const pools: string[][] = [];
-  let cursor = 0;
-  for (let index = ECO_DIVISIONS - 1; index >= 0; index -= 1) {
-    const [min, max] = DIVISION_BANDS[index];
-    const size = index === 0 ? ECO_TEAMS_PER_DIVISION - 1 : ECO_TEAMS_PER_DIVISION;
-    // Real clubs take the divisions that match their exact five-man average.
-    const names = WORLD_TEAMS.filter((name) => {
-      const avg = worldAvgOvr(name);
-      return avg >= min && avg <= max && !used.has(name);
-    }).slice(0, size);
+  // The 80 real-roster clubs fill Divisions 11-15, strongest group in Division 15.
+  for (let group = 0; group < 5; group += 1) {
+    const division = ECO_DIVISIONS - 1 - group;
+    const names = WORLD_BY_OVR
+      .slice(group * ECO_TEAMS_PER_DIVISION, (group + 1) * ECO_TEAMS_PER_DIVISION)
+      .filter((name) => !used.has(name));
     names.forEach((name) => used.add(name));
-    // Remaining slots are regional / academy filler clubs from the same ladder.
-    while (names.length < size) {
-      const next = fillers[cursor];
-      cursor += 1;
-      if (next === undefined) break;
-      if (used.has(next) || WORLD_DB[next]) continue;
-      used.add(next);
-      names.push(next);
-    }
-    pools[index] = names;
+    pools[division] = names;
+  }
+  // Every remaining seat is a real professional org, strongest names in Division 10.
+  const legacy = LEGACY_ORGS.filter((name) => name.length > 2 && !used.has(name) && !WORLD_DB[name]);
+  let cursor = 0;
+  for (let division = 9; division >= 0; division -= 1) {
+    const size = division === 0 ? ECO_TEAMS_PER_DIVISION - 1 : ECO_TEAMS_PER_DIVISION;
+    const names = legacy.slice(cursor, cursor + size);
+    cursor += size;
+    names.forEach((name) => used.add(name));
+    pools[division] = names;
   }
   return pools;
 })();

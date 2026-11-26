@@ -470,7 +470,7 @@ const roleFromEco = (role: string): Role => (role === 'Support' ? 'Lurker' : rol
 const tierFromOvr = (ovr: number): Tier =>
   ovr >= 93 ? 'Icon' : ovr >= 85 ? 'Star' : ovr >= 75 ? 'Gold' : ovr >= 65 ? 'Silver' : 'Bronze';
 
-// 250 real players, straight from the world database (Top 250 ranking curve).
+// 400 real players, straight from the world database (Top 80 clubs ranking curve).
 const playerSeed: Array<[string, string, string, Role, number, Tier]> = WORLD_PLAYERS.map((player) => [
   player.name,
   player.team,
