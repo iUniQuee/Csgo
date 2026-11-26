@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { simulateRound, type Duelist, type FeedLine } from './matchEngine';
-import { advanceEcoState, ecoTeamById, ecoTeamsInDivision, readEcoState, resetEcoState, saveEcoState, teamAvgOvr, teamRoster, teamTier, type EcoState, type EcoTeam, type OvrRange } from './ecosystem';
+import { advanceEcoState, DIVISION_BANDS, ecoTeamById, ecoTeamsInDivision, readEcoState, resetEcoState, saveEcoState, teamAvgOvr, teamRoster, teamTier, WORLD_PLAYERS, type EcoState, type EcoTeam, type OvrRange } from './ecosystem';
 import {
   BadgeCheck,
   Box,
@@ -91,23 +91,30 @@ const IDLE_MAX_MS = 12 * 60 * 60 * 1000;
 const idleHourlyRate = (divisionIndex: number): number => 50 + Math.round((Math.max(0, Math.min(divisions.length - 1, divisionIndex)) / (divisions.length - 1)) * 250);
 const rolloverDrop = (divisionIndex: number): number => divisionIndex <= 2 ? 0 : divisionIndex <= 8 ? 2 : 3;
 
-const divisions: Division[] = [
-  { name: 'Bronze', ovr: 59, ovrMin: 58, ovrMax: 60, reward: 1500 },
-  { name: 'Silver', ovr: 62, ovrMin: 61, ovrMax: 62, reward: 2500 },
-  { name: 'Gold Nova', ovr: 64, ovrMin: 63, ovrMax: 64, reward: 3500 },
-  { name: 'Master Guardian', ovr: 66, ovrMin: 65, ovrMax: 68, reward: 5000 },
-  { name: 'Guardian Elite', ovr: 70, ovrMin: 69, ovrMax: 70, reward: 7000 },
-  { name: 'Vanguard', ovr: 72, ovrMin: 71, ovrMax: 72, reward: 9500 },
-  { name: 'Legendary Eagle', ovr: 74, ovrMin: 73, ovrMax: 74, reward: 12000 },
-  { name: 'Supreme Legend', ovr: 76, ovrMin: 75, ovrMax: 77, reward: 15000 },
-  { name: 'World Class', ovr: 79, ovrMin: 78, ovrMax: 79, reward: 19000 },
-  { name: 'Pro Series', ovr: 81, ovrMin: 80, ovrMax: 81, reward: 24000 },
-  { name: 'Eagle Elite', ovr: 83, ovrMin: 82, ovrMax: 83, reward: 30000 },
-  { name: 'Prime Division', ovr: 85, ovrMin: 84, ovrMax: 86, reward: 38000 },
-  { name: 'Major Elite', ovr: 88, ovrMin: 87, ovrMax: 88, reward: 48000 },
-  { name: 'Supreme Elite', ovr: 90, ovrMin: 89, ovrMax: 90, reward: 60000 },
-  { name: 'Global Elite', ovr: 96, ovrMin: 91, ovrMax: 97, reward: 100000 },
+const divisionMeta: { name: string; reward: number }[] = [
+  { name: 'Bronze', reward: 1500 },
+  { name: 'Silver', reward: 2500 },
+  { name: 'Gold Nova', reward: 3500 },
+  { name: 'Master Guardian', reward: 5000 },
+  { name: 'Guardian Elite', reward: 7000 },
+  { name: 'Vanguard', reward: 9500 },
+  { name: 'Legendary Eagle', reward: 12000 },
+  { name: 'Supreme Legend', reward: 15000 },
+  { name: 'World Class', reward: 19000 },
+  { name: 'Pro Series', reward: 24000 },
+  { name: 'Eagle Elite', reward: 30000 },
+  { name: 'Prime Division', reward: 38000 },
+  { name: 'Major Elite', reward: 48000 },
+  { name: 'Supreme Elite', reward: 60000 },
+  { name: 'Global Elite', reward: 100000 },
 ];
+
+// OVR bands mirror the real 250-player world database, so every division's clubs
+// (real or filler) sit in one coherent, monotonic strength ladder.
+const divisions: Division[] = divisionMeta.map((meta, index) => {
+  const [ovrMin, ovrMax] = DIVISION_BANDS[index] ?? [58, 60];
+  return { ...meta, ovrMin, ovrMax, ovr: Math.round((ovrMin + ovrMax) / 2) };
+});
 
 const leagueMatchdays = 24;
 const ecoRanges: OvrRange[] = divisions.map((item) => ({ min: item.ovrMin, max: item.ovrMax }));
@@ -158,7 +165,7 @@ function buildSchedule(teamIds: string[]): [string, string][][] {
 }
 
 function simulateLeagueMatch(home: LeagueTeam, away: LeagueTeam): { homeScore: number; awayScore: number } {
-  const chance = 1 / (1 + Math.pow(10, (away.ovr - home.ovr) / 14));
+  const chance = 1 / (1 + Math.pow(10, (away.ovr - home.ovr) / 6));
   const loserScore = 4 + Math.floor(Math.random() * 8);
   return Math.random() < chance ? { homeScore: 13, awayScore: loserScore } : { homeScore: loserScore, awayScore: 13 };
 }
@@ -368,49 +375,19 @@ const avatarDetails: Record<Avatar, { label: string; icon: ReactNode; color: str
   sentinel: { label: 'MVP Star', icon: <Star />, color: '#34d399' },
 };
 
-const playerSeed: Array<[string, string, string, Role, number, Tier]> = [
-  // Bronze · academy and Tier-3 prospects (55-64 OVR)
-  ['Patsi', 'PARIVISION', 'RU', 'Entry', 60, 'Bronze'], ['k1to', 'BIG', 'DE', 'Entry', 60, 'Bronze'], ['Annihilation', 'ATOX', 'MN', 'Entry', 59, 'Bronze'], ['br0', 'Monte', 'UA', 'Entry', 58, 'Bronze'],
-  ['Woro2k', 'Monte', 'UA', 'AWPer', 61, 'Bronze'], ['headtr1ck', 'B8', 'UA', 'AWPer', 61, 'Bronze'], ['KEi', '9INE', 'PL', 'AWPer', 60, 'Bronze'], ['regali', '9INE', 'RO', 'AWPer', 58, 'Bronze'],
-  ['sdy', 'Monte', 'UA', 'IGL', 62, 'Bronze'], ['Jerry', 'PARIVISION', 'RU', 'IGL', 59, 'Bronze'], ['Goofy', '9INE', 'PL', 'IGL', 58, 'Bronze'], ['yAmi', 'ATOX', 'MN', 'IGL', 57, 'Bronze'],
-  ['DemQQ', 'Monte', 'UA', 'Rifler', 59, 'Bronze'], ['npl', 'B8', 'UA', 'Rifler', 58, 'Bronze'], ['xerolte', 'Chinggis Warriors', 'MN', 'Rifler', 60, 'Bronze'],
-  ['Qikert', 'PARIVISION', 'KZ', 'Lurker', 62, 'Bronze'], ['JDC', 'BIG', 'DE', 'Lurker', 59, 'Bronze'],
-  // Silver · Tier-2 professionals (65-74 OVR)
-  ['zorte', 'BetBoom', 'RU', 'AWPer', 72, 'Silver'], ['Krad', 'BetBoom', 'RU', 'Entry', 70, 'Silver'], ['nafany', 'BetBoom', 'RU', 'IGL', 68, 'Silver'], ['s1ren', 'BetBoom', 'RU', 'Rifler', 69, 'Silver'], ['gokushima', 'BetBoom', 'RU', 'Lurker', 67, 'Silver'],
-  ['Maka', '3DMAX', 'FR', 'IGL', 70, 'Silver'], ['Djoko', '3DMAX', 'FR', 'Entry', 68, 'Silver'], ['Lucky', '3DMAX', 'FR', 'AWPer', 69, 'Silver'], ['Graviti', '3DMAX', 'FR', 'Rifler', 67, 'Silver'], ['bodyy', '3DMAX', 'FR', 'Lurker', 66, 'Silver'],
-  ['MUTiRiS', 'SAW', 'PT', 'IGL', 71, 'Silver'], ['roman', 'SAW', 'PT', 'Rifler', 69, 'Silver'], ['story', 'SAW', 'PT', 'AWPer', 68, 'Silver'], ['aragornN', 'SAW', 'PT', 'Entry', 65, 'Silver'],
-  ['jottAAA', 'Sangal', 'TR', 'Rifler', 70, 'Silver'], ['ngiN', 'Sangal', 'TR', 'IGL', 67, 'Silver'], ['Soulfly', 'Sangal', 'TR', 'Entry', 66, 'Silver'], ['imoRR', 'Sangal', 'TR', 'Lurker', 65, 'Silver'],
-  ['kabal', 'ATOX', 'MN', 'IGL', 69, 'Silver'], ['dok', 'ATOX', 'MN', 'Rifler', 66, 'Silver'], ['MiQ', 'ATOX', 'MN', 'AWPer', 65, 'Silver'],
-  ['ncl', 'Chinggis Warriors', 'MN', 'Entry', 68, 'Silver'], ['nin9', 'Chinggis Warriors', 'MN', 'Rifler', 67, 'Silver'], ['Zilkenberg', 'Chinggis Warriors', 'MN', 'AWPer', 66, 'Silver'],
-  ['1eeR', 'Nemiga', 'BY', 'AWPer', 72, 'Silver'], ['Jyo', 'Nemiga', 'BY', 'IGL', 68, 'Silver'], ['mds', 'Nemiga', 'BY', 'Entry', 67, 'Silver'],
-  ['tabseN', 'BIG', 'DE', 'IGL', 73, 'Silver'], ['Krimbo', 'BIG', 'DE', 'Rifler', 71, 'Silver'], ['hyped', 'BIG', 'DE', 'AWPer', 68, 'Silver'],
-  ['REZ', 'GamerLegion', 'SE', 'Rifler', 72, 'Silver'], ['Tauson', 'GamerLegion', 'DK', 'Entry', 68, 'Silver'], ['acoR', 'GamerLegion', 'DK', 'AWPer', 70, 'Silver'], ['Sdaim', 'GamerLegion', 'PL', 'Lurker', 69, 'Silver'],
-  ['insani', 'MIBR', 'BR', 'Entry', 70, 'Silver'], ['VINI', 'Imperial', 'BR', 'Rifler', 69, 'Silver'], ['chelo', 'Imperial', 'BR', 'Lurker', 68, 'Silver'],
-  // Gold · solid Tier-1 pros (75-84 OVR)
-  ['Techno4K', 'The MongolZ', 'MN', 'Rifler', 82, 'Gold'], ['910', 'The MongolZ', 'MN', 'IGL', 82, 'Gold'], ['mzinho', 'The MongolZ', 'MN', 'Rifler', 80, 'Gold'],
-  ['jL', 'NAVI', 'LT', 'Entry', 83, 'Gold'], ['Aleksib', 'NAVI', 'FI', 'IGL', 79, 'Gold'], ['w0nderful', 'NAVI', 'UA', 'AWPer', 83, 'Gold'], ['b1t', 'NAVI', 'UA', 'Rifler', 80, 'Gold'], ['iM', 'NAVI', 'RO', 'Entry', 78, 'Gold'],
-  ['karrigan', 'FaZe Clan', 'DK', 'IGL', 78, 'Gold'], ['frozen', 'FaZe Clan', 'SK', 'Rifler', 84, 'Gold'], ['EliGE', 'FaZe Clan', 'US', 'Rifler', 83, 'Gold'], ['rain', 'FaZe Clan', 'NO', 'Entry', 80, 'Gold'],
-  ['apEX', 'Team Vitality', 'FR', 'IGL', 76, 'Gold'], ['mezii', 'Team Vitality', 'GB', 'Lurker', 79, 'Gold'],
-  ['magixx', 'Team Spirit', 'RU', 'Lurker', 78, 'Gold'], ['zont1x', 'Team Spirit', 'RU', 'Rifler', 80, 'Gold'], ['chopper', 'Team Spirit', 'RU', 'IGL', 75, 'Gold'],
-  ['Brollan', 'MOUZ', 'SE', 'Rifler', 82, 'Gold'], ['torzsi', 'MOUZ', 'HU', 'AWPer', 80, 'Gold'], ['siuhy', 'MOUZ', 'PL', 'IGL', 79, 'Gold'],
-  ['huNter-', 'G2 Esports', 'BA', 'Entry', 83, 'Gold'], ['Snax', 'G2 Esports', 'PL', 'IGL', 75, 'Gold'], ['HeavyGod', 'G2 Esports', 'IL', 'Rifler', 82, 'Gold'],
-  ['TeSeS', 'Team Falcons', 'DK', 'Lurker', 78, 'Gold'], ['Magisk', 'Team Falcons', 'DK', 'IGL', 76, 'Gold'], ['degster', 'Team Falcons', 'RU', 'AWPer', 82, 'Gold'], ['kyousuke', 'Team Falcons', 'RU', 'Rifler', 79, 'Gold'],
-  ['FalleN', 'FURIA', 'BR', 'AWPer', 78, 'Gold'], ['yuurih', 'FURIA', 'BR', 'Rifler', 81, 'Gold'], ['KSCERATO', 'FURIA', 'BR', 'Lurker', 82, 'Gold'], ['molodoy', 'FURIA', 'BR', 'Entry', 80, 'Gold'], ['YEKINDAR', 'FURIA', 'LV', 'Entry', 79, 'Gold'],
-  ['biguzera', 'paiN Gaming', 'BR', 'IGL', 77, 'Gold'], ['nqz', 'paiN Gaming', 'BR', 'AWPer', 78, 'Gold'], ['snow', 'paiN Gaming', 'BR', 'Rifler', 75, 'Gold'], ['dav1deuS', 'paiN Gaming', 'BR', 'Lurker', 76, 'Gold'],
-  ['Twistzz', 'Team Liquid', 'CA', 'Rifler', 83, 'Gold'], ['NAF', 'Team Liquid', 'CA', 'Lurker', 79, 'Gold'], ['ultimate', 'Team Liquid', 'SE', 'AWPer', 80, 'Gold'],
-  ['jabbi', 'Astralis', 'DK', 'Entry', 79, 'Gold'], ['Staehr', 'Astralis', 'DK', 'Rifler', 80, 'Gold'], ['HooXi', 'Astralis', 'DK', 'IGL', 77, 'Gold'],
-  ['kyxsan', 'HEROIC', 'MK', 'IGL', 78, 'Gold'], ['sjuush', 'HEROIC', 'DK', 'Rifler', 76, 'Gold'], ['yxngstxr', 'HEROIC', 'SE', 'Entry', 75, 'Gold'], ['NertZ', 'HEROIC', 'IL', 'Lurker', 81, 'Gold'],
-  ['JT', 'Complexity', 'ZA', 'IGL', 76, 'Gold'], ['hallzerk', 'Complexity', 'NO', 'AWPer', 79, 'Gold'], ['Grim', 'Complexity', 'US', 'Rifler', 78, 'Gold'],
-  ['XANTARES', 'Eternal Fire', 'TR', 'Entry', 84, 'Gold'], ['MAJ3R', 'Eternal Fire', 'TR', 'IGL', 75, 'Gold'], ['woxic', 'Eternal Fire', 'TR', 'AWPer', 80, 'Gold'], ['Wicadia', 'Eternal Fire', 'TR', 'Rifler', 83, 'Gold'],
-  ['electroNic', 'Virtus.pro', 'RU', 'Rifler', 81, 'Gold'], ['FL1T', 'Virtus.pro', 'RU', 'Lurker', 80, 'Gold'], ['fame', 'Virtus.pro', 'RU', 'Entry', 78, 'Gold'], ['ICY', 'Virtus.pro', 'RU', 'AWPer', 79, 'Gold'], ['Perfecto', 'Virtus.pro', 'RU', 'IGL', 78, 'Gold'],
-  // Star · walkout elites (85-89 OVR)
-  ['bLitz', 'The MongolZ', 'MN', 'IGL', 87, 'Star'], ['Senzu', 'The MongolZ', 'MN', 'AWPer', 87, 'Star'], ['ropz', 'Team Vitality', 'EE', 'Lurker', 88, 'Star'], ['broky', 'FaZe Clan', 'LV', 'AWPer', 86, 'Star'],
-  ['flameZ', 'Team Vitality', 'IL', 'Entry', 86, 'Star'], ['xertioN', 'MOUZ', 'IL', 'Entry', 86, 'Star'], ['Jimpphat', 'MOUZ', 'FI', 'Lurker', 86, 'Star'], ['Spinx', 'Team Vitality', 'IL', 'Rifler', 85, 'Star'], ['stavn', 'Astralis', 'DK', 'Lurker', 86, 'Star'],
-  // Icon · Major MVPs and legends (90-96 OVR)
-  ['ZywOo', 'Team Vitality', 'FR', 'AWPer', 96, 'Icon'], ['Prime s1mple', 'NAVI', 'UA', 'AWPer', 96, 'Icon'], ['donk', 'Team Spirit', 'RU', 'Entry', 95, 'Icon'], ['m0NESY', 'G2 Esports', 'RU', 'AWPer', 94, 'Icon'],
-  ['NiKo', 'Team Falcons', 'BA', 'Rifler', 91, 'Icon'], ['sh1ro', 'Team Spirit', 'RU', 'AWPer', 90, 'Icon'], ['device', 'Astralis', 'DK', 'AWPer', 90, 'Icon'], ['f0rest', 'Ninjas in Pyjamas', 'SE', 'Rifler', 90, 'Icon'],
-  ['GeT_RiGhT', 'Ninjas in Pyjamas', 'SE', 'Lurker', 90, 'Icon'], ['coldzera', 'Legacy', 'BR', 'Lurker', 90, 'Icon'],
-];
+const roleFromEco = (role: string): Role => (role === 'Support' ? 'Lurker' : role) as Role;
+const tierFromOvr = (ovr: number): Tier =>
+  ovr >= 93 ? 'Icon' : ovr >= 85 ? 'Star' : ovr >= 75 ? 'Gold' : ovr >= 65 ? 'Silver' : 'Bronze';
+
+// 250 real players, straight from the world database (Top 250 ranking curve).
+const playerSeed: Array<[string, string, string, Role, number, Tier]> = WORLD_PLAYERS.map((player) => [
+  player.name,
+  player.team,
+  player.country,
+  roleFromEco(player.role),
+  player.ovr,
+  tierFromOvr(player.ovr),
+]);
 
 const database: PlayerCard[] = playerSeed.map(([name, team, country, role, ovr, tier], index) => ({
   id: `player-${index + 1}`,
@@ -697,9 +674,13 @@ function App() {
   }, [levelUp]);
 
   const squadCards = roles.map((role) => owned.find((card) => card.instanceId === squad[role])).filter((card): card is OwnedCard => Boolean(card));
-  const teamRating = squadCards.length ? Math.round(squadCards.reduce((sum, card) => sum + cardPower(card).ovr, 0) / squadCards.length) : 0;
-  teamRatingRef.current = teamRating;
   const chemistry = calculateChemistry(squadCards, perks);
+  // Team OVR = exact average of the 5 active cards + chemistry bonus.
+  const chemBonus = squadCards.length ? Math.round(chemistry / 25) : 0;
+  const teamRating = squadCards.length
+    ? Math.min(99, Math.round(squadCards.reduce((sum, card) => sum + cardPower(card).ovr, 0) / squadCards.length) + chemBonus)
+    : 0;
+  teamRatingRef.current = teamRating;
   const squadDuelists: Duelist[] = squadCards.map((card) => {
     const power = cardPower(card);
     return { name: card.name, role: card.role, ovr: power.ovr, aim: power.aim, rfl: power.rfl, sns: power.sns, clt: power.clt };
@@ -1181,7 +1162,7 @@ function CreationModal({ onComplete }: { onComplete: (profile: Profile) => void 
 function PackOverlay({ pack, onClose, onReveal, onRevealAll, onContinue }: { pack: PackCard[]; onClose: () => void; onReveal: (instanceId: string) => void; onRevealAll: () => void; onContinue: () => void }) { const revealedCount = pack.filter((card) => card.revealed).length; return <div className="pack-overlay"><div className="pack-modal"><button className="overlay-close" onClick={onClose}><X size={18} /></button><div className="eyebrow orange">PACK OPENING · SAVED TO CLUB</div><h2>Reveal your players</h2><p>Every card is already secured in My Club. Reveal them now, then review your new collection.</p><div className="pack-cards">{pack.map((card) => <div className="reveal-wrap" key={card.instanceId}>{card.revealed ? <div className="revealed-card"><FutCard card={card} isNew /><div className="revealed-actions"><span className="actioned"><BadgeCheck size={14} /> Saved to My Club</span></div></div> : <button className="face-down" onClick={() => onReveal(card.instanceId)}><div className="face-logo"><Crosshair size={30} /><span>CS2</span></div><div className="face-lines" /><span>CLICK TO REVEAL</span></button>}</div>)}</div><div className="reveal-footer"><span>{revealedCount} / {pack.length} revealed</span>{revealedCount < pack.length ? <button className="primary-button" onClick={onRevealAll}><Sparkles size={15} /> Reveal All</button> : <button className="primary-button" onClick={onContinue}>Continue to My Club <ChevronRight size={15} /></button>}</div></div></div>; }
 
 function PageTitle({ eyebrow, title, subtitle, action }: { eyebrow: string; title: string; subtitle: string; action?: ReactNode }) { return <div className="page-title-row"><div><div className="eyebrow">{eyebrow}</div><h1>{title}</h1><p>{subtitle}</p></div>{action}</div>; }
-function countryFlag(country: string): string { const flags: Record<string, string> = { BR: '🇧🇷', SK: '🇸🇰', UA: '🇺🇦', RU: '🇷🇺', DE: '🇩🇪', PL: '🇵🇱', RO: '🇷🇴', IL: '🇮🇱', MN: '🇲🇳', LT: '🇱🇹', FI: '🇫🇮', DK: '🇩🇰', HU: '🇭🇺', EE: '🇪🇪', BA: '🇧🇦', FR: '🇫🇷', LV: '🇱🇻', NO: '🇳🇴', CA: '🇨🇦', US: '🇺🇸', SE: '🇸🇪', TR: '🇹🇷', PT: '🇵🇹', BY: '🇧🇾', GB: '🇬🇧', MK: '🇲🇰', ZA: '🇿🇦', KZ: '🇰🇿' }; return flags[country] ?? '🏳️'; }
+function countryFlag(country: string): string { const flags: Record<string, string> = { BR: '🇧🇷', SK: '🇸🇰', UA: '🇺🇦', RU: '🇷🇺', DE: '🇩🇪', PL: '🇵🇱', RO: '🇷🇴', IL: '🇮🇱', MN: '🇲🇳', LT: '🇱🇹', FI: '🇫🇮', DK: '🇩🇰', HU: '🇭🇺', EE: '🇪🇪', BA: '🇧🇦', FR: '🇫🇷', LV: '🇱🇻', NO: '🇳🇴', CA: '🇨🇦', US: '🇺🇸', SE: '🇸🇪', TR: '🇹🇷', PT: '🇵🇹', BY: '🇧🇾', GB: '🇬🇧', MK: '🇲🇰', ZA: '🇿🇦', KZ: '🇰🇿', AU: '🇦🇺', ES: '🇪🇸', CZ: '🇨🇿', GR: '🇬🇷', AR: '🇦🇷', RS: '🇷🇸', XK: '🇽🇰', GT: '🇬🇹', CN: '🇨🇳' }; return flags[country] ?? '🏳️'; }
 function calculateChemistry(cards: OwnedCard[], perks: Perk[]): number { if (!cards.length) return 0; const teams = new Set(cards.map((card) => card.team)); const countries = new Set(cards.map((card) => card.country)); const links = cards.reduce((sum, card, index) => sum + cards.slice(index + 1).filter((other) => other.team === card.team || other.country === card.country).length, 0); return Math.min(100, Math.round((cards.length / 5) * 48 + Math.min(30, links * 7) + Math.max(0, teams.size === 1 ? 12 : 0) + Math.max(0, countries.size === 1 ? 8 : 0) + (perks.includes('Tactical Genius') ? 3 : 0))); }
 
 export default App;
