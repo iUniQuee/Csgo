@@ -546,7 +546,7 @@ const dropTables: Record<PackId, DropRow[]> = {
   rifle: [['Silver', 25], ['Gold', 63], ['Star', 10], ['Icon', 2]],
   asia: [['Silver', 25], ['Gold', 63], ['Star', 10], ['Icon', 2]],
   igl: [['Silver', 25], ['Gold', 63], ['Star', 10], ['Icon', 2]],
-  major: [['Gold', 1], ['Star', 0], ['Icon', 99]],
+  major: [['Gold', 60], ['Star', 37], ['Icon', 3]],
 };
 const rollTier = (table: DropRow[]): Tier => {
   const total = table.reduce((sum, [, weight]) => sum + weight, 0);
@@ -586,7 +586,7 @@ const packCatalog: PackDefinition[] = [
   { id: 'bronze', name: 'Bronze Pack', price: 500, tier: 'Bronze', art: 'BRONZE', tagline: 'Academy talent', description: 'A reliable starting point: Bronze rookies with a real shot at a Silver upgrade.', odds: '75% Bronze · 24% Silver · 1% Gold', count: 3, bulk: true },
   { id: 'silver', name: 'Silver Pack', price: 800, tier: 'Silver', art: 'SILVER', tagline: 'Mid-table value', description: 'Three cards with a strong Silver base and a genuine Star chase.', odds: '30% Bronze · 55% Silver · 14% Gold · 1% Star', count: 3, badge: 'VALUE PICK', color: '#cbd5e1', soft: 'rgba(203,213,225,.14)', bulk: true },
   { id: 'gold', name: 'Gold Pack', price: 1500, tier: 'Gold', art: 'GOLD', tagline: 'Established star', description: 'Tier-1 talent with a clean Silver floor and a shot at a walkout.', odds: '35% Silver · 58% Gold · 6% Star · 1% Icon', count: 3, badge: 'MOST POPULAR', bulk: true },
-  { id: 'major', name: 'Major Legend Pack', price: 1, tier: 'Icon', art: 'MAJOR', tagline: 'Major legend', description: 'Only the biggest names from the biggest stage.', odds: '1% Gold · 0% Star · 99% Icon', count: 3 },
+  { id: 'major', name: 'Major Legend Pack', price: 15000, tier: 'Icon', art: 'MAJOR', tagline: 'Major legend', description: 'Only the biggest names from the biggest stage.', odds: '60% Gold · 37% Star · 3% Icon', count: 3 },
   { id: 'daily', name: 'Daily Free Pack', price: 0, tier: 'Gold', art: 'FREE', tagline: 'Every 24 hours', description: 'Two free cards daily, with Silver and better always possible.', odds: '70% Bronze · 25% Silver · 5% Gold', count: 2, badge: 'FREE DAILY', color: '#34d399', soft: 'rgba(52,211,153,.14)' },
   { id: 'awp', name: 'AWPer & Sniper Pack', price: 2200, tier: 'Star', art: 'AWP', tagline: 'Snipers only', description: 'Three dedicated AWPers. Chase m0NESY, ZywOo, sh1ro or broky.', odds: '25% Silver · 63% Gold · 10% Star · 2% Icon', count: 3, badge: 'ROLE GUARANTEE', color: '#22d3ee', soft: 'rgba(34,211,238,.14)' },
   { id: 'rifle', name: 'Rifler & Entry Pack', price: 2200, tier: 'Gold', art: 'RIFLE', tagline: 'Riflers & Entry', description: 'Three riflers or entry fraggers built to open every site.', odds: '25% Silver · 63% Gold · 10% Star · 2% Icon', count: 3, badge: 'ROLE GUARANTEE', color: '#f97316', soft: 'rgba(249,115,22,.14)' },
