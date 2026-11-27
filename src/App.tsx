@@ -740,13 +740,31 @@ const roles: Role[] = ['Entry', 'AWPer', 'IGL', 'Rifler', 'Lurker'];
 const tiers: Tier[] = ['Bronze', 'Silver', 'Gold', 'Star', 'Icon', 'Wonderkid', 'TOTW', 'Major MVP'];
 const tierConfig: Record<Tier, { color: string; soft: string; price: number; sell: number; subtitle: string }> = {
   Bronze: { color: '#a9784a', soft: 'rgba(169,120,74,.14)', price: 500, sell: 50, subtitle: 'Academy rookie' },
-  Silver: { color: '#c3cbd9', soft: 'rgba(195,203,217,.14)', price: 900, sell: 120, subtitle: 'Tier-2 professional' },
-  Gold: { color: '#f5c451', soft: 'rgba(245,196,81,.14)', price: 1500, sell: 350, subtitle: 'Tier-1 star' },
-  Star: { color: '#d98cff', soft: 'rgba(217,140,255,.14)', price: 0, sell: 1000, subtitle: 'Walkout elite' },
-  Icon: { color: '#55e8ef', soft: 'rgba(85,232,239,.14)', price: 0, sell: 3000, subtitle: 'Major legend' },
-  Wonderkid: { color: '#34f5c5', soft: 'rgba(52,245,197,.16)', price: 0, sell: 1800, subtitle: 'Rising prodigy' },
-  TOTW: { color: '#ffd76a', soft: 'rgba(255,215,106,.16)', price: 0, sell: 2600, subtitle: 'Team of the Week' },
-  'Major MVP': { color: '#c084fc', soft: 'rgba(192,132,252,.18)', price: 0, sell: 5000, subtitle: 'Major MVP edition' },
+  Silver: { color: '#c3cbd9', soft: 'rgba(195,203,217,.14)', price: 900, sell: 150, subtitle: 'Tier-2 professional' },
+  Gold: { color: '#f5c451', soft: 'rgba(245,196,81,.14)', price: 1500, sell: 500, subtitle: 'Tier-1 star' },
+  Star: { color: '#d98cff', soft: 'rgba(217,140,255,.14)', price: 0, sell: 2500, subtitle: 'Walkout elite' },
+  Icon: { color: '#55e8ef', soft: 'rgba(85,232,239,.14)', price: 0, sell: 7500, subtitle: 'Major legend' },
+  Wonderkid: { color: '#34f5c5', soft: 'rgba(52,245,197,.16)', price: 0, sell: 800, subtitle: 'Rising prodigy' },
+  TOTW: { color: '#ffd76a', soft: 'rgba(255,215,106,.16)', price: 0, sell: 1200, subtitle: 'Team of the Week' },
+  'Major MVP': { color: '#c084fc', soft: 'rgba(192,132,252,.18)', price: 0, sell: 4000, subtitle: 'Major MVP edition' },
+};
+const MARKET_PRICE_RANGES: Record<Tier, [number, number]> = {
+  Bronze: [100, 250],
+  Silver: [350, 800],
+  Gold: [1200, 3500],
+  Wonderkid: [2000, 5000],
+  TOTW: [3500, 7500],
+  Star: [6000, 15000],
+  'Major MVP': [12000, 25000],
+  Icon: [20000, 50000],
+};
+const marketPriceRange = (tier: Tier): [number, number] => MARKET_PRICE_RANGES[tier] ?? MARKET_PRICE_RANGES.Gold;
+/** Rolls a tier-appropriate price, nudged by OVR and rounded to a clean 50-coin step. */
+const marketPriceFor = (tier: Tier, ovr = 70): number => {
+  const [min, max] = marketPriceRange(tier);
+  const quality = Math.min(1, Math.max(0, (ovr - 50) / 49));
+  const position = Math.min(1, Math.max(0, 0.12 + quality * 0.72 + (Math.random() - 0.5) * 0.24));
+  return Math.round((min + (max - min) * position) / 50) * 50;
 };
 const perkDetails: Record<Perk, string> = {
   'Tactical Genius': '+3 → +6 → +10 Chemistry (LV 15 / 30)',
@@ -874,16 +892,16 @@ const cardFromSnapshot = (snapshot: Record<string, unknown>, prefix: string): Ow
   };
 };
 const dropTables: Record<PackId, DropRow[]> = {
-  daily: [['Bronze', 70], ['Silver', 25], ['Gold', 5]],
-  bronze: [['Bronze', 75], ['Silver', 24], ['Gold', 1]],
-  silver: [['Bronze', 30], ['Silver', 55], ['Gold', 14], ['Star', 1]],
-  gold: [['Silver', 33], ['Gold', 56], ['Star', 6], ['Wonderkid', 2], ['TOTW', 2], ['Icon', 1]],
-  awp: [['Silver', 25], ['Gold', 63], ['Star', 10], ['Icon', 2]],
-  rifle: [['Silver', 25], ['Gold', 63], ['Star', 10], ['Icon', 2]],
-  asia: [['Silver', 25], ['Gold', 63], ['Star', 10], ['Icon', 2]],
-  igl: [['Silver', 25], ['Gold', 63], ['Star', 10], ['Icon', 2]],
-  major: [['Gold', 55], ['Star', 34], ['Major MVP', 3], ['TOTW', 4], ['Icon', 4]],
-  special: [['Wonderkid', 42], ['TOTW', 30], ['Major MVP', 6], ['Gold', 10], ['Star', 8], ['Icon', 4]],
+  daily: [['Bronze', 75], ['Silver', 22], ['Gold', 3]],
+  bronze: [['Bronze', 70], ['Silver', 27], ['Gold', 3]],
+  silver: [['Bronze', 25], ['Silver', 58], ['Gold', 15], ['Wonderkid', 2]],
+  gold: [['Silver', 30], ['Gold', 55], ['Wonderkid', 8], ['Star', 5], ['TOTW', 2]],
+  awp: [['Gold', 55], ['TOTW', 20], ['Star', 20], ['Icon', 5]],
+  rifle: [['Gold', 55], ['TOTW', 20], ['Star', 20], ['Icon', 5]],
+  asia: [['Gold', 60], ['Wonderkid', 20], ['Star', 15], ['Major MVP', 5]],
+  igl: [['Gold', 55], ['TOTW', 20], ['Star', 20], ['Icon', 5]],
+  major: [['Gold', 40], ['Star', 35], ['Major MVP', 17], ['Icon', 8]],
+  special: [['Wonderkid', 45], ['TOTW', 35], ['Star', 14], ['Major MVP', 6]],
 };
 const rollTier = (table: DropRow[]): Tier => {
   const total = table.reduce((sum, [, weight]) => sum + weight, 0);
@@ -925,16 +943,16 @@ const countdownLabel = (ms: number): string => {
 };
 
 const packDefinitions: PackDefinition[] = [
-  { id: 'bronze', name: 'Bronze Pack', price: 500, tier: 'Bronze', art: 'BRONZE', tagline: 'Academy talent', description: 'A reliable starting point: Bronze rookies with a real shot at a Silver upgrade.', odds: '75% Bronze · 24% Silver · 1% Gold', count: 3, bulk: true },
-  { id: 'silver', name: 'Silver Pack', price: 800, tier: 'Silver', art: 'SILVER', tagline: 'Mid-table value', description: 'Three cards with a strong Silver base and a genuine Star chase.', odds: '30% Bronze · 55% Silver · 14% Gold · 1% Star', count: 3, badge: 'VALUE PICK', color: '#cbd5e1', soft: 'rgba(203,213,225,.14)', bulk: true },
-  { id: 'gold', name: 'Gold Pack', price: 1500, tier: 'Gold', art: 'GOLD', tagline: 'Established star', description: 'Tier-1 talent with a clean Silver floor and a shot at a walkout.', odds: '33% Silver · 56% Gold · 6% Star · 2% Wonderkid · 2% TOTW · 1% Icon', count: 3, badge: 'MOST POPULAR', bulk: true },
-  { id: 'major', name: 'Major Legend Pack', price: 15000, tier: 'Icon', art: 'MAJOR', tagline: 'Major legend', description: 'Only the biggest names from the biggest stage.', odds: '55% Gold · 34% Star · 4% TOTW · 3% Major MVP · 4% Icon', count: 3 },
-  { id: 'daily', name: 'Daily Free Pack', price: 0, tier: 'Gold', art: 'FREE', tagline: 'Every 24 hours', description: 'Two free cards daily, with Silver and better always possible.', odds: '70% Bronze · 25% Silver · 5% Gold', count: 2, badge: 'FREE DAILY', color: '#34d399', soft: 'rgba(52,211,153,.14)' },
-  { id: 'awp', name: 'AWPer & Sniper Pack', price: 2200, tier: 'Star', art: 'AWP', tagline: 'Snipers only', description: 'Three dedicated AWPers. Chase m0NESY, ZywOo, sh1ro or broky.', odds: '25% Silver · 63% Gold · 10% Star · 2% Icon', count: 3, badge: 'ROLE GUARANTEE', color: '#22d3ee', soft: 'rgba(34,211,238,.14)' },
-  { id: 'rifle', name: 'Rifler & Entry Pack', price: 2200, tier: 'Gold', art: 'RIFLE', tagline: 'Riflers & Entry', description: 'Three riflers or entry fraggers built to open every site.', odds: '25% Silver · 63% Gold · 10% Star · 2% Icon', count: 3, badge: 'ROLE GUARANTEE', color: '#f97316', soft: 'rgba(249,115,22,.14)' },
-  { id: 'igl', name: 'IGL & Support Pack', price: 2200, tier: 'Star', art: 'IGL', tagline: 'In-game leaders', description: 'Three in-game leaders and support minds: bLitz, Aleksib, karrigan, apEX and more.', odds: '25% Silver · 63% Gold · 10% Star · 2% Icon', count: 3, badge: 'ROLE GUARANTEE', color: '#38bdf8', soft: 'rgba(56,189,248,.14)' },
-  { id: 'asia', name: 'Asian & Regional Masters', price: 2000, tier: 'Star', art: 'ASIA', tagline: 'Chemistry boost', description: 'Weighted toward The MongolZ and regional talent for instant links.', odds: '25% Silver · 63% Gold · 10% Star · 2% Icon', count: 3, badge: 'REGIONAL', color: '#a78bfa', soft: 'rgba(167,139,250,.14)' },
-  { id: 'special', name: 'Wonderkid & TOTW Pack', price: 3500, tier: 'Wonderkid', art: 'SPECIAL', tagline: 'Special editions', description: 'Three cards weighted toward Special Editions: Wonderkids, TOTW standouts and Major MVPs.', odds: '42% Wonderkid · 30% TOTW · 6% Major MVP · 10% Gold · 8% Star · 4% Icon', count: 3, badge: 'SPECIAL EDITION', color: '#34f5c5', soft: 'rgba(52,245,197,.16)' },
+  { id: 'bronze', name: 'Bronze Pack', price: 400, tier: 'Bronze', art: 'BRONZE', tagline: 'Academy talent', description: 'A reliable starting point: Bronze rookies with a real shot at a Silver upgrade.', odds: '70% Bronze · 27% Silver · 3% Gold', count: 3, bulk: true },
+  { id: 'silver', name: 'Silver Pack', price: 900, tier: 'Silver', art: 'SILVER', tagline: 'Mid-table value', description: 'Three cards with a strong Silver base and a genuine Gold chase.', odds: '25% Bronze · 58% Silver · 15% Gold · 2% Wonderkid', count: 3, badge: 'VALUE PICK', color: '#cbd5e1', soft: 'rgba(203,213,225,.14)', bulk: true },
+  { id: 'gold', name: 'Gold Pack', price: 1800, tier: 'Gold', art: 'GOLD', tagline: 'Established star', description: 'Tier-1 talent with a clean Silver floor and a shot at a walkout.', odds: '30% Silver · 55% Gold · 8% Wonderkid · 5% Star · 2% TOTW', count: 3, badge: 'MOST POPULAR', bulk: true },
+  { id: 'major', name: 'Major Legend Pack', price: 12000, tier: 'Icon', art: 'MAJOR', tagline: 'Major legend', description: 'Only the biggest names from the biggest stage.', odds: '40% Gold · 35% Star · 17% Major MVP · 8% Icon', count: 3 },
+  { id: 'daily', name: 'Daily Free Pack', price: 0, tier: 'Gold', art: 'FREE', tagline: 'Every 24 hours', description: 'Two free cards daily, with Silver and better always possible.', odds: '75% Bronze · 22% Silver · 3% Gold', count: 2, badge: 'FREE DAILY', color: '#34d399', soft: 'rgba(52,211,153,.14)' },
+  { id: 'awp', name: 'AWPer & Sniper Pack', price: 2500, tier: 'Star', art: 'AWP', tagline: 'Snipers only', description: 'Three dedicated AWPers. Chase m0NESY, ZywOo, sh1ro or broky.', odds: '55% Gold · 20% TOTW · 20% Star · 5% Icon', count: 3, badge: 'ROLE GUARANTEE', color: '#22d3ee', soft: 'rgba(34,211,238,.14)' },
+  { id: 'rifle', name: 'Rifler & Entry Pack', price: 2500, tier: 'Gold', art: 'RIFLE', tagline: 'Riflers & Entry', description: 'Three riflers or entry fraggers built to open every site.', odds: '55% Gold · 20% TOTW · 20% Star · 5% Icon', count: 3, badge: 'ROLE GUARANTEE', color: '#f97316', soft: 'rgba(249,115,22,.14)' },
+  { id: 'igl', name: 'IGL & Support Pack', price: 2500, tier: 'Star', art: 'IGL', tagline: 'In-game leaders', description: 'Three in-game leaders and support minds: bLitz, Aleksib, karrigan, apEX and more.', odds: '55% Gold · 20% TOTW · 20% Star · 5% Icon', count: 3, badge: 'ROLE GUARANTEE', color: '#38bdf8', soft: 'rgba(56,189,248,.14)' },
+  { id: 'asia', name: 'Asian & Regional Masters', price: 2200, tier: 'Star', art: 'ASIA', tagline: 'Chemistry boost', description: 'Weighted toward The MongolZ and regional talent for instant links.', odds: '60% Gold · 20% Wonderkid · 15% Star · 5% Major MVP', count: 3, badge: 'REGIONAL', color: '#a78bfa', soft: 'rgba(167,139,250,.14)' },
+  { id: 'special', name: 'Wonderkid & TOTW Pack', price: 4500, tier: 'Wonderkid', art: 'SPECIAL', tagline: 'Special editions', description: 'Three cards weighted toward Special Editions: Wonderkids, TOTW standouts and Major MVPs.', odds: '45% Wonderkid · 35% TOTW · 14% Star · 6% Major MVP', count: 3, badge: 'SPECIAL EDITION', color: '#34f5c5', soft: 'rgba(52,245,197,.16)' },
 ];
 // Packs are shown cheapest first, so the free daily pack always leads the grid.
 const packCatalog: PackDefinition[] = [...packDefinitions].sort((left, right) => left.price - right.price);
@@ -2234,14 +2252,13 @@ function TeamsPanel({ owned, badge, claimedClubs, onClaim, onEquip }: { owned: O
 const BOT_MARKET_CLUBS = CLUB_GROUPS.slice(0, 48).map((club) => club.name);
 const createBotListing = (): MarketListing => {
   const card = database[Math.floor(Math.random() * database.length)];
-  const base = tierConfig[card.tier].sell;
   return {
     id: `bot-listing-${randomId()}-${randomId()}`,
     sellerId: `bot:${randomId()}`,
     sellerClub: BOT_MARKET_CLUBS[Math.floor(Math.random() * BOT_MARKET_CLUBS.length)] ?? 'AI Manager FC',
     cardId: card.id,
     card: { ...card, level: 1, xp: 0 },
-    price: Math.max(75, Math.round(base * (2.2 + Math.random() * 2.8))),
+    price: marketPriceFor(card.tier, card.ovr),
     status: 'open',
     buyerId: null,
     claimed: false,
@@ -2249,7 +2266,7 @@ const createBotListing = (): MarketListing => {
   };
 };
 
-const BOT_MARKET_KEY = 'cs2-market-bot-rotation-v1';
+const BOT_MARKET_KEY = 'cs2-market-bot-rotation-v2';
 const BOT_MARKET_MS = 5 * 60 * 1000;
 const BOT_MARKET_SIZE = 10;
 type BotMarketRotation = { at: number; listings: MarketListing[] };
@@ -2323,7 +2340,7 @@ function MarketPage({ userId, coins, owned, squad, onList, onBuy, onCancel, onCl
     if (!sellTarget) return;
     const value = Math.max(1, Math.min(999999, Math.floor(Number(price) || 0)));
     const ok = await onList(sellTarget, value);
-    if (ok) { setSellTarget(null); setPrice('750'); setTab('mine'); void reload(); }
+    if (ok) { setSellTarget(null); setPrice(''); setTab('mine'); void reload(); }
   };
   const runBuy = async (listing: MarketListing): Promise<void> => {
     if (buying) return;
@@ -2385,7 +2402,7 @@ function MarketPage({ userId, coins, owned, squad, onList, onBuy, onCancel, onCl
     </> : tab === 'sell' ? <>
       {sellTarget ? <div className="market-sell-panel">
         <div className="market-card-top"><span className="team-emblem">{clubMonogram(sellTarget.team)}</span><div><strong>{sellTarget.name}</strong><small>{sellTarget.tier} · {sellTarget.role} · OVR {sellTarget.ovr}{sellTarget.level > 1 ? ` · Lvl ${sellTarget.level}` : ''}</small></div></div>
-        <label className="market-price-input"><span>Your price (coins)</span><input type="number" min={1} max={999999} value={price} onChange={(event) => setPrice(event.target.value)} /></label>
+        <label className="market-price-input"><span>Your price (coins) · Suggested {marketPriceRange(sellTarget.tier)[0].toLocaleString()}–{marketPriceRange(sellTarget.tier)[1].toLocaleString()}</span><input type="number" min={1} max={999999} value={price} onChange={(event) => setPrice(event.target.value)} /></label>
         <div className="market-payout"><span>You receive</span><strong>{marketPayout(Math.max(0, Math.floor(Number(price) || 0))).toLocaleString()} coins</strong><small>{Math.round(MARKET_TAX * 100)}% market tax · {Math.max(0, Math.floor(Number(price) || 0)).toLocaleString()} − {Math.max(0, Math.floor(Number(price) || 0) - marketPayout(Math.max(0, Math.floor(Number(price) || 0)))).toLocaleString()}</small></div>
         <div className="confirm-actions"><button className="league-ghost" onClick={() => setSellTarget(null)}>Back</button><button className="primary-button" onClick={() => void submitListing()} disabled={!Number(price)}><Tag size={14} /> List on market</button></div>
       </div> : owned.length ? <div className="market-grid">{owned.map((card) => {
@@ -2394,7 +2411,7 @@ function MarketPage({ userId, coins, owned, squad, onList, onBuy, onCancel, onCl
           <div className="market-card-visual"><FutCard card={card} compact />{starting && <span className="market-owned-badge in-club"><BadgeCheck size={11} /> IN CLUB</span>}</div>
           <div className="market-listing-line"><span>{card.tier} · {roleLabel(card.role)}</span><b>OVR {card.ovr}</b></div>
           <div className="market-seller"><span>QUICK SELL VALUE</span><strong>{tierConfig[card.tier].sell.toLocaleString()}</strong></div>
-          <button className="primary-button" disabled={starting} onClick={(event) => { event.stopPropagation(); setSellTarget(card); setPrice(String(Math.max(50, tierConfig[card.tier].sell * 3))); }}>{starting ? 'In your squad' : 'Choose price'}</button>
+          <button className="primary-button" disabled={starting} onClick={(event) => { event.stopPropagation(); setSellTarget(card); setPrice(String(marketPriceFor(card.tier, card.ovr))); }}>{starting ? 'In your squad' : 'Choose price'}</button>
         </div>;
       })}</div> : <div className="empty-club"><Box size={32} /><h3>No cards to sell</h3><p>Open a pack or complete a league day to find surplus players.</p></div>}
     </> : <>
