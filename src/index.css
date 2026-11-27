@@ -1801,3 +1801,9 @@
 .form-pill.loss b { color: #fb7185; }
 .form-pill.pending { min-width: 64px; border-style: dashed; border-color: #263244; background: transparent; color: #334155; }
 @media (max-width: 640px) { .recent-form, .recent-form-head { flex-direction: column; align-items: flex-start; } }
+
+/* ==== Daily scrim allowance ==== */
+.scrim-count { margin-left: .15rem; font-size: 9px; font-weight: 800; letter-spacing: .06em; opacity: .85; }
+.scrim-limit-label { display: inline-block; max-width: 240px; font-size: 10px; font-weight: 800; line-height: 1.35; letter-spacing: .05em; text-align: left; white-space: normal; }
+.primary-button:disabled, .league-ghost:disabled { opacity: .55; cursor: not-allowed; filter: grayscale(.4); }
+.league-actions .primary-button:disabled { white-space: normal; text-align: left; }
