@@ -103,13 +103,15 @@ export const leagueService = {
   /**
    * Every real manager registered in one division, across all its zones.
    *
-   * The division is one shared 16-seat table: real players are fetched first and
-   * the caller fills only the remaining seats with AI clubs, so two managers in
-   * Division 5 see each other instead of two separate bot rooms.
+   * The division is one shared 16-seat table: `league_teams` rows carry the live
+   * record, and `profiles` fills in managers who registered but have not written
+   * a seat yet. The caller adds AI clubs only for the remaining seats, so two
+   * managers in Division 5 see each other instead of two separate bot rooms.
    */
   async fetchDivision(division: number): Promise<OnlineTeamRow[]> {
     const client = getSupabase();
     if (!client) return [];
+    const seats: OnlineTeamRow[] = [];
     try {
       const { data, error } = await client
         .from('league_teams')
@@ -120,12 +122,12 @@ export const leagueService = {
         .order('updated_at', { ascending: true })
         .limit(16);
       if (error) throw error;
-      return (data ?? []).flatMap((raw) => {
+      (data ?? []).forEach((raw) => {
         const row = raw as TeamRow;
         const userId = text(row.user_id);
-        if (!userId) return [];
+        if (!userId) return;
         const profile = embeddedProfile(row);
-        return [{
+        seats.push({
           userId,
           clubName: text(row.club_name, 'NEW CLUB'),
           managerName: text(profile?.manager_name, 'MANAGER'),
@@ -138,12 +140,48 @@ export const leagueService = {
           roundDiff: number(row.round_diff),
           points: number(row.points),
           updatedAt: row.updated_at ? Date.parse(row.updated_at) : 0,
-        }];
+        });
       });
     } catch (error) {
       report('[league_teams] Could not load the division table. Did you run the SQL script?', error);
       return [];
     }
+    if (seats.length >= 16) return seats;
+    // A freshly registered manager may not have a league_teams row yet; seat them
+    // from their profile at 0 points so they still appear in the shared division.
+    try {
+      const known = new Set(seats.map((seat) => seat.userId));
+      const { data, error } = await client
+        .from('profiles')
+        .select('id, club_name, manager_name, avatar, division, zone, updated_at')
+        .eq('division', division)
+        .order('updated_at', { ascending: true })
+        .limit(16);
+      if (error) throw error;
+      (data ?? []).forEach((raw) => {
+        const row = raw as { id?: string | null; club_name?: string | null; manager_name?: string | null; avatar?: string | null; division?: number | null; zone?: number | null; updated_at?: string | null };
+        const userId = text(row.id);
+        if (!userId || known.has(userId) || seats.length >= 16) return;
+        known.add(userId);
+        seats.push({
+          userId,
+          clubName: text(row.club_name, 'NEW CLUB'),
+          managerName: text(row.manager_name, 'MANAGER'),
+          avatar: text(row.avatar, 'falcon'),
+          division: number(row.division, division),
+          zone: number(row.zone),
+          squadOvr: 50,
+          wins: 0,
+          losses: 0,
+          roundDiff: 0,
+          points: 0,
+          updatedAt: row.updated_at ? Date.parse(row.updated_at) : 0,
+        });
+      });
+    } catch {
+      // The extra profile pass is best-effort; the seat table above is enough.
+    }
+    return seats;
   },
 
   /**
