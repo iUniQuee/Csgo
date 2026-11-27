@@ -100,8 +100,14 @@ export const leagueService = {
   /** True when the live division table is in use. */
   get isRemote(): boolean { return isSupabaseConfigured; },
 
-  /** Every real manager seated in one division + zone, best ranked first. */
-  async fetchZone(division: number, zone: number): Promise<OnlineTeamRow[]> {
+  /**
+   * Every real manager registered in one division, across all its zones.
+   *
+   * The division is one shared 16-seat table: real players are fetched first and
+   * the caller fills only the remaining seats with AI clubs, so two managers in
+   * Division 5 see each other instead of two separate bot rooms.
+   */
+  async fetchDivision(division: number): Promise<OnlineTeamRow[]> {
     const client = getSupabase();
     if (!client) return [];
     try {
@@ -109,9 +115,9 @@ export const leagueService = {
         .from('league_teams')
         .select('user_id, club_name, division, zone, squad_ovr, wins, losses, round_diff, points, updated_at, profiles(manager_name, avatar)')
         .eq('division', division)
-        .eq('zone', zone)
         .order('points', { ascending: false })
         .order('round_diff', { ascending: false })
+        .order('updated_at', { ascending: true })
         .limit(16);
       if (error) throw error;
       return (data ?? []).flatMap((raw) => {
@@ -135,7 +141,7 @@ export const leagueService = {
         }];
       });
     } catch (error) {
-      report('[league_teams] Could not load the live zone. Did you run the SQL script?', error);
+      report('[league_teams] Could not load the division table. Did you run the SQL script?', error);
       return [];
     }
   },

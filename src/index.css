@@ -1967,3 +1967,9 @@
 .standings-legend .floor { color: #38bdf8; }
 .standings-table .league-club { gap: .4rem; }
 @media (max-width: 700px) { .standings-table .league-table-head, .standings-table .league-row { min-width: 460px; } }
+
+/* ==== Shared division table: PLAYER / BOT seats ==== */
+.standings-table .league-club { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .4rem; }
+.standings-table .league-club small { width: 100%; }
+.standings-table .seat-badge { font-size: 7px; padding: .1rem .32rem; }
+.standings-table .league-row.is-bot .league-club b { color: #b6c2d2; }

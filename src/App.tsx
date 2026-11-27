@@ -314,7 +314,7 @@ function createLeagueTeams(divisionIndex: number): LeagueTeam[] {
   const user = createHumanTeam({ id: 'user', name: 'YOUR CLUB', manager: 'YOU', kind: 'player' });
   const room = createZone({ division: divisionIndex, bots, humans: rivals });
   const join = joinZone(room, user);
-  return (join ? join.teams : room).slice(0, ZONE_SIZE);
+  return seedBotStats((join ? join.teams : room).slice(0, ZONE_SIZE), divisionIndex);
 }
 
 /**
@@ -348,7 +348,7 @@ function reconcileLeagueTeams(league: LeagueState, ecoTeams: EcoTeam[]): LeagueS
   pool.filter((eco) => !used.has(eco.id)).slice(0, free).forEach((eco) => {
     bots.push({ id: `${eco.id}-d${league.division + 1}-z${zone + 1}`, name: eco.name, ovr: eco.ovr, kind: 'bot', played: 0, wins: 0, losses: 0, roundDiff: 0, points: 0 });
   });
-  const teams = [...humans, ...bots].slice(0, ZONE_SIZE);
+  const teams = seedBotStats([...humans, ...bots].slice(0, ZONE_SIZE), league.division);
   const unchanged = teams.length === league.teams.length && teams.every((team, index) => team === league.teams[index]);
   return unchanged ? league : { ...league, teams };
 }
@@ -391,13 +391,22 @@ function mergeOnlineRivals(league: LeagueState, online: LeagueTeam[]): LeagueSta
   for (let filler = 1; room.length < ZONE_SIZE; filler += 1) {
     room.push({ id: `ai-fill-d${league.division + 1}-${filler}`, name: `AI Club ${filler}`, ovr: divisions[league.division].ovrMax, kind: 'bot', played: 0, wins: 0, losses: 0, roundDiff: 0, points: 0 });
   }
-  const teams = room.slice(0, ZONE_SIZE);
+  const teams = seedBotStats(room.slice(0, ZONE_SIZE), league.division);
   const unchanged = teams.length === league.teams.length && teams.every((team, index) => team === league.teams[index]);
   return unchanged ? league : { ...league, teams };
 }
 
 function createSeason(divisionIndex: number, season: number, trophies: LeagueTrophy[], monthKey = monthKeyOf(Date.now())): LeagueState {
-  return { division: divisionIndex, season, monthKey, matchday: 0, teams: createLeagueTeams(divisionIndex), trophies, summary: null, zone: 0, zoneCount: 1 };
+  // New clubs join the day's shared table at the slot the clock is already on,
+  // so their schedule and the seeded AI records line up with every other account.
+  const now = Date.now();
+  const elapsed = completedSlotsToday(now);
+  return {
+    division: divisionIndex, season, monthKey, matchday: elapsed,
+    teams: createLeagueTeams(divisionIndex), trophies, summary: null,
+    zone: 0, zoneCount: 1, slot: elapsed,
+    lastSlotAt: elapsed > 0 ? slotStartOfDay(dayStartOf(now), elapsed - 1) : dayStartOf(now),
+  };
 }
 
 function sortLeague(teams: LeagueTeam[]): LeagueTeam[] {
@@ -410,8 +419,64 @@ const withForm = (team: LeagueTeam, won: boolean): void => {
   team.form = next.slice(-5);
 };
 
+/** Stable hash → PRNG, so every client derives the same AI records for the date. */
+const hashSeed = (value: string): number => {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+};
+const seededRandom = (seed: number): (() => number) => {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+};
+
+/** Hourly :30 match slots already completed today (0–24). */
+const completedSlotsToday = (now: number): number => {
+  const minutes = (now - dayStartOf(now)) / 60000;
+  return Math.max(0, Math.min(SLOTS_PER_DAY, Math.floor((minutes - SLOT_OFFSET_MIN) / 60) + 1));
+};
+
+/**
+ * Bots are part of one global season table, not a fresh 0/0 room per account:
+ * their record and form for the current date are derived deterministically from
+ * the season day, the division and the club id. Existing AI progress is kept.
+ */
+function seedBotStats(teams: LeagueTeam[], divisionIndex: number, now = Date.now()): LeagueTeam[] {
+  const played = completedSlotsToday(now);
+  if (!played || !teams.some((team) => teamKind(team) === 'bot' && team.played === 0)) return teams;
+  const dayKey = dayKeyOf(now);
+  const midOvr = divisions[Math.max(0, Math.min(divisions.length - 1, divisionIndex))]?.ovr ?? 60;
+  return teams.map((team) => {
+    if (teamKind(team) !== 'bot' || team.played > 0) return team;
+    const random = seededRandom(hashSeed(`${dayKey}|d${divisionIndex + 1}|${ecoIdOf(team)}`));
+    let wins = 0;
+    let roundDiff = 0;
+    const form: Array<'W' | 'L'> = [];
+    for (let slot = 0; slot < played; slot += 1) {
+      const opponentOvr = midOvr + (random() * 6 - 3);
+      const chance = 1 / (1 + Math.pow(10, (opponentOvr - team.ovr) / 6));
+      const won = random() < chance;
+      const margin = 13 - (4 + Math.floor(random() * 8));
+      wins += won ? 1 : 0;
+      roundDiff += won ? margin : -margin;
+      form.push(won ? 'W' : 'L');
+    }
+    return { ...team, played, wins, losses: played - wins, points: wins * 3, roundDiff, form: form.slice(-5) };
+  });
+}
+
 function buildSchedule(teamIds: string[]): [string, string][][] {
-  const pool = [...teamIds];
+  // Sorted ids: every account in a division gets the exact same fixture list.
+  const pool = [...teamIds].sort();
   const odd = pool.length % 2 === 1;
   if (odd) pool.push('bye');
   const rounds: [string, string][][] = [];
@@ -603,7 +668,7 @@ function advanceLeague(league: LeagueState, now: number, teamRating: number, hol
     if (holdSlot !== null && boundary >= holdSlot) break;
     processed += 1;
     if (state.dayKey !== dayKeyOf(boundary)) {
-      state = { ...state, dayKey: dayKeyOf(boundary), teams: state.teams.map(emptyTeamStats), slot: 0, matchday: 0 };
+      state = { ...state, dayKey: dayKeyOf(boundary), teams: seedBotStats(state.teams.map(emptyTeamStats), state.division, boundary), slot: 0, matchday: 0, lastSlotAt: boundary };
     }
     const played = playLeagueSlot(state, teamRating);
     state = { ...played.league, lastSlotAt: boundary };
@@ -1181,13 +1246,13 @@ function App() {
     return () => { cancelled = true; window.clearTimeout(timer); };
   }, [hydrated, showCreation, cloudUserId, profile, managerXp, perks, coins, level, teamRating, league.division, league.zone, league.teams, owned, squad, quests, claimedClubs, career]);
 
-  // Live zone: every real manager in this division + zone joins the room and the
-  // remaining seats stay with AI clubs from `ecosystem.ts`. Refreshed every minute.
+  // Live division: every real manager registered in this division shares one
+  // 16-seat table (PLAYER rows) and only the remaining seats are AI clubs.
+  // Refreshed every minute so a manager who registers mid-day appears for everyone.
   useEffect(() => {
     if (!hydrated || showCreation || !cloudUserId) return;
     const userId = cloudUserId;
     const division = league.division;
-    const zone = league.zone ?? 0;
     let active = true;
     const toSeat = (row: OnlineTeamRow): LeagueTeam => ({
       id: `online-${row.userId}`,
@@ -1203,19 +1268,21 @@ function App() {
       points: row.points,
     });
     const pull = (): void => {
-      void leagueService.fetchZone(division, zone).then((rows) => {
+      void leagueService.fetchDivision(division).then((rows) => {
         if (!active) return;
         const current = leagueRef.current;
-        if (current.division !== division || (current.zone ?? 0) !== zone) return;
+        if (current.division !== division) return;
         const rivals = rows.filter((row) => row.userId !== userId).map(toSeat);
-        const next = mergeOnlineRivals(current, rivals);
+        const merged = mergeOnlineRivals(current, rivals);
+        // The division is one shared table, so every seat is in the same room.
+        const next = merged.zone === 0 && merged.zoneCount === 1 ? merged : { ...merged, zone: 0, zoneCount: 1 };
         if (next !== current) { leagueRef.current = next; setLeague(next); }
       });
     };
     pull();
     const timer = window.setInterval(pull, 60000);
     return () => { active = false; window.clearInterval(timer); };
-  }, [hydrated, showCreation, cloudUserId, league.division, league.zone]);
+  }, [hydrated, showCreation, cloudUserId, league.division]);
 
   const squadDuelists: Duelist[] = squadCards.map((card) => {
     const power = cardPower(card);
@@ -2183,8 +2250,8 @@ function LeagueStandings({ teams, division, divisionName, zone, teamName, emblem
           <span className="league-club">
             {team.id === 'user' ? <TeamEmblem emblem={emblem} accent={accent} size={18} /> : <ClubCrest seed={team.id || team.name} size={22} />}
             <b>{team.id === 'user' ? clubLabel(teamName) : team.name}</b>
-            {team.id === 'user' && <i>YOU</i>}
-            <small>{team.manager ? `${team.manager} · ` : ''}OVR {team.ovr}</small>
+            {team.id === 'user' ? <i>YOU</i> : <em className={`seat-badge ${teamKind(team) === 'bot' ? 'bot' : 'player'}`}>{teamKind(team) === 'bot' ? 'BOT' : 'PLAYER'}</em>}
+            <small>{team.manager ? `${team.manager} · ` : teamKind(team) === 'bot' ? 'AI club · ' : 'Real manager · '}OVR {team.ovr}</small>
           </span>
           <span className="league-form">{form.length ? form.map((entry, entryIndex) => <i key={`${entry}-${entryIndex}`} className={entry === 'W' ? 'w' : 'l'}>{entry}</i>) : <em>—</em>}</span>
           <span>{team.wins}/{team.losses}</span>
