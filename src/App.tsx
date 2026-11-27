@@ -759,7 +759,7 @@ const countdownLabel = (ms: number): string => {
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 };
 
-const packCatalog: PackDefinition[] = [
+const packDefinitions: PackDefinition[] = [
   { id: 'bronze', name: 'Bronze Pack', price: 500, tier: 'Bronze', art: 'BRONZE', tagline: 'Academy talent', description: 'A reliable starting point: Bronze rookies with a real shot at a Silver upgrade.', odds: '75% Bronze · 24% Silver · 1% Gold', count: 3, bulk: true },
   { id: 'silver', name: 'Silver Pack', price: 800, tier: 'Silver', art: 'SILVER', tagline: 'Mid-table value', description: 'Three cards with a strong Silver base and a genuine Star chase.', odds: '30% Bronze · 55% Silver · 14% Gold · 1% Star', count: 3, badge: 'VALUE PICK', color: '#cbd5e1', soft: 'rgba(203,213,225,.14)', bulk: true },
   { id: 'gold', name: 'Gold Pack', price: 1500, tier: 'Gold', art: 'GOLD', tagline: 'Established star', description: 'Tier-1 talent with a clean Silver floor and a shot at a walkout.', odds: '35% Silver · 58% Gold · 6% Star · 1% Icon', count: 3, badge: 'MOST POPULAR', bulk: true },
@@ -770,6 +770,8 @@ const packCatalog: PackDefinition[] = [
   { id: 'igl', name: 'IGL & Support Pack', price: 2200, tier: 'Star', art: 'IGL', tagline: 'In-game leaders', description: 'Three in-game leaders and support minds: bLitz, Aleksib, karrigan, apEX and more.', odds: '25% Silver · 63% Gold · 10% Star · 2% Icon', count: 3, badge: 'ROLE GUARANTEE', color: '#38bdf8', soft: 'rgba(56,189,248,.14)' },
   { id: 'asia', name: 'Asian & Regional Masters', price: 2000, tier: 'Star', art: 'ASIA', tagline: 'Chemistry boost', description: 'Weighted toward The MongolZ and regional talent for instant links.', odds: '25% Silver · 63% Gold · 10% Star · 2% Icon', count: 3, badge: 'REGIONAL', color: '#a78bfa', soft: 'rgba(167,139,250,.14)' },
 ];
+// Packs are shown cheapest first, so the free daily pack always leads the grid.
+const packCatalog: PackDefinition[] = [...packDefinitions].sort((left, right) => left.price - right.price);
 
 const pickCard = (pool: PlayerCard[]): PlayerCard => pool[Math.floor(Math.random() * pool.length)];
 const toPackCard = (card: PlayerCard): PackCard => ({ ...card, instanceId: `${randomId()}-${card.id}`, level: 1, revealed: false });
