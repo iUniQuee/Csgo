@@ -29,6 +29,7 @@ const pickRadarMap = (): RadarMapId => RADAR_MAPS[Math.floor(Math.random() * RAD
 import { DEFAULT_ACCENT, EMBLEM_ACCENTS, EMBLEMS, TeamEmblem, type EmblemId } from './emblems';
 import { loadCloudProfile, saveCloudProfile } from './services/profileService';
 import { isSupabaseConfigured } from './services/supabase';
+import { fetchMonthlyRoster, fallbackRosterSync, monthYearLabel, syncStateFromRoster, type MonthlyRoster, type RosterSyncState } from './services/rosterService';
 import { authErrorMessage, authService, type AuthSession } from './services/authService';
 import { advanceEcoState, DIVISION_BANDS, ecoTeamById, ecoTeamsInDivision, readEcoState, saveEcoState, teamAvgOvr, teamRoster, teamTier, WORLD_PLAYERS, type EcoState, type EcoTeam, type OvrRange } from './ecosystem';
 import {
@@ -57,6 +58,7 @@ import {
   Pencil,
   Percent,
   Play,
+  Radio,
   RotateCcw,
   Search,
   Shield,
@@ -796,6 +798,55 @@ const CLUB_GROUPS: Array<{ name: string; players: PlayerCard[] }> = (() => {
 const CLUB_COMPLETION_TARGET = 5;
 const CLUB_COMPLETION_REWARD = 5000;
 
+/**
+ * Applies the monthly HLTV snapshot to the live card database. Pack pools,
+ * catalogs and new cards read this same array, so ratings and transfers take
+ * effect without a rebuild. The built-in data stays in place if the file is absent.
+ */
+function applyMonthlyRoster(roster: MonthlyRoster): number {
+  const byId = new Map(database.map((card) => [card.id, card]));
+  const byName = new Map(database.map((card) => [card.name.trim().toLowerCase(), card]));
+  const knownTeams = new Set(database.map((card) => card.team));
+  const clampStat = (value: number): number => Math.min(99, Math.max(1, Math.round(value)));
+  let applied = 0;
+
+  for (const entry of roster.players) {
+    const card = (entry.id ? byId.get(entry.id) : undefined) ?? byName.get(entry.name.trim().toLowerCase());
+    if (!card) continue;
+    const ovr = clampStat(Number(entry.ovr));
+    if (!Number.isFinite(ovr)) continue;
+    const shift = ovr - card.ovr;
+    card.ovr = ovr;
+    card.aim = Number.isFinite(Number(entry.aim)) ? clampStat(Number(entry.aim)) : clampStat(card.aim + shift);
+    card.rfl = Number.isFinite(Number(entry.rfl)) ? clampStat(Number(entry.rfl)) : clampStat(card.rfl + shift);
+    card.sns = Number.isFinite(Number(entry.sns)) ? clampStat(Number(entry.sns)) : clampStat(card.sns + shift);
+    card.clt = Number.isFinite(Number(entry.clt)) ? clampStat(Number(entry.clt)) : clampStat(card.clt + shift);
+    if (typeof entry.team === 'string' && knownTeams.has(entry.team)) card.team = entry.team;
+    card.tier = tierFromOvr(ovr);
+    applied += 1;
+  }
+
+  // Rebuild the club index so transfers show up in Teams and badge progress.
+  const groups = new Map<string, PlayerCard[]>();
+  database.forEach((card) => {
+    const list = groups.get(card.team);
+    if (list) list.push(card); else groups.set(card.team, [card]);
+  });
+  CLUB_GROUPS.splice(0, CLUB_GROUPS.length, ...[...groups.entries()]
+    .map(([name, players]) => ({ name, players }))
+    .sort((left, right) => left.name.localeCompare(right.name)));
+
+  return applied;
+}
+
+/** Keeps owned base cards on the latest synced ratings and team; editions keep their boosts. */
+const refreshOwnedCard = (card: OwnedCard): OwnedCard => {
+  if (isSpecialTier(card.tier)) return card;
+  const base = database.find((item) => item.id === card.id);
+  if (!base) return card;
+  return { ...card, team: base.team, country: base.country, role: base.role, tier: base.tier, ovr: base.ovr, aim: base.aim, rfl: base.rfl, sns: base.sns, clt: base.clt };
+};
+
 const createStarterCards = (): OwnedCard[] => {
   return roles.map((role) => {
     const academy = database.filter((card) => card.tier === 'Bronze' && card.role === role && card.ovr >= 58 && card.ovr <= 62);
@@ -973,6 +1024,7 @@ function App() {
   const [career, setCareer] = useState<CareerStats>(createCareer);
   const [seasonNotice, setSeasonNotice] = useState<{ season: number; from: number; to: number; coins: number; packs: number } | null>(null);
   const [lastActiveAt, setLastActiveAt] = useState(() => Date.now());
+  const [rosterSync, setRosterSync] = useState<RosterSyncState>(fallbackRosterSync);
   const [ecosystem, setEcosystem] = useState<EcoState>(() => readEcoState(ecoRanges));
   const leagueRef = useRef(league);
   const ecoRef = useRef(ecosystem);
@@ -984,6 +1036,18 @@ function App() {
   // Set by ArenaPage while a live league match is in progress. The league clock
   // must not auto-simulate that slot before the player's result is recorded.
   const liveSlotRef = useRef<number | null>(null);
+
+  // Monthly HLTV overlay: keep built-in ratings if the snapshot is unavailable.
+  useEffect(() => {
+    let active = true;
+    void fetchMonthlyRoster().then((roster) => {
+      if (!active || !roster) return;
+      const applied = applyMonthlyRoster(roster);
+      setRosterSync(syncStateFromRoster(roster, applied > 0));
+    }).catch(() => { /* built-in data remains active */ });
+    return () => { active = false; };
+  }, []);
+  useEffect(() => { setOwned((current) => current.map(refreshOwnedCard)); }, [rosterSync]);
 
   // Sign-in gate: restore the Supabase (or local) session before anything else loads.
   useEffect(() => {
@@ -1019,7 +1083,7 @@ function App() {
     const savedXp = data.managerXp ?? 0;
     let nextCoins = data.coins ?? 2500;
     let nextXp = savedXp;
-    let nextOwned = (data.owned ?? []).map((card) => ({ ...card, level: cardLevel(card.level) }));
+    let nextOwned = (data.owned ?? []).map((card) => refreshOwnedCard({ ...card, level: cardLevel(card.level) }));
     const freshIds: string[] = [...(data.newCardIds ?? [])];
     let nextLeague: LeagueState;
     if (data.league && (data.league.teams?.length ?? 0) >= 16) {
@@ -1575,8 +1639,8 @@ function App() {
     <main className="ultimate-main">
       <Header profile={profile} coins={coins} cloud={cloudSync} onLogout={handleLogout} />
       <div className="ultimate-content">
-        {page === 'squad' && <SquadPage owned={owned} squad={squad} setSquad={updateSquad} teamRating={teamRating} chemistry={chemistry} perks={perks} tactChemBonus={perkValues.chemistry} profile={profile} onGoClub={() => setPage('club')} quests={quests} onClaimQuest={claimQuest} />}
-        {page === 'store' && <StorePage coins={coins} level={level} dailyReadyAt={dailyReadyAt} iconPity={iconPity} onBuyPack={purchasePack} />}
+        {page === 'squad' && <SquadPage owned={owned} squad={squad} setSquad={updateSquad} teamRating={teamRating} chemistry={chemistry} perks={perks} tactChemBonus={perkValues.chemistry} profile={profile} onGoClub={() => setPage('club')} quests={quests} onClaimQuest={claimQuest} rosterSync={rosterSync} />}
+        {page === 'store' && <StorePage coins={coins} level={level} dailyReadyAt={dailyReadyAt} iconPity={iconPity} onBuyPack={purchasePack} rosterSync={rosterSync} />}
         {page === 'club' && <ClubPage owned={owned} squad={squad} setSquad={updateSquad} newCardIds={newCardIds} badge={profile.badge} claimedClubs={claimedClubs} onClaimClub={claimClubMilestone} onEquipBadge={equipClubBadge} onSell={quickSell} onUpgrade={upgradeCard} />}
         {page === 'market' && <MarketPage userId={cloudUserId} coins={coins} owned={owned} squad={squad} onList={listOnMarket} onBuy={buyMarketCard} onCancel={cancelMarketListing} onClaim={claimMarketSale} />}
         {page === 'arena' && <ArenaPage userId={cloudUserId} teamRating={teamRating} chemistry={chemistry} perks={perks} teamName={profile.teamName} emblem={profile.emblem} accent={profile.accent} league={league} setLeague={applyLeague} onWin={awardArenaWin} onMvpBonus={awardMvpBonus} squad={squadDuelists} ecosystem={ecosystem.teams} quests={quests} onClaimQuest={claimQuest} scrimWins={quests.day === dayKeyOf(Date.now()) ? quests.scrimWins : 0} scrimsPlayed={quests.day === dayKeyOf(Date.now()) ? quests.scrims : 0} onScrimmage={resolveScrimmage} onCareerMatch={recordCareerMatch} recentForm={career.recent} liveSlotRef={liveSlotRef} />}
@@ -1800,11 +1864,11 @@ function RecentForm({ entries }: { entries: MatchForm[] }) {
   </div>;
 }
 
-function SquadPage({ owned, squad, setSquad, teamRating, chemistry, perks, tactChemBonus, profile, onGoClub, quests, onClaimQuest }: { owned: OwnedCard[]; squad: Record<Role, string>; setSquad: (squad: Record<Role, string>) => void; teamRating: number; chemistry: number; perks: Perk[]; tactChemBonus: number; profile: Profile; onGoClub: () => void; quests: QuestState; onClaimQuest: (id: QuestId) => void }) {
+function SquadPage({ owned, squad, setSquad, teamRating, chemistry, perks, tactChemBonus, profile, onGoClub, quests, onClaimQuest, rosterSync }: { owned: OwnedCard[]; squad: Record<Role, string>; setSquad: (squad: Record<Role, string>) => void; teamRating: number; chemistry: number; perks: Perk[]; tactChemBonus: number; profile: Profile; onGoClub: () => void; quests: QuestState; onClaimQuest: (id: QuestId) => void; rosterSync: RosterSyncState }) {
   const chemAimPct = chemistry > 0 ? Math.ceil(chemistry / 20) : 0;
   const [inspect, setInspect] = useState<OwnedCard | null>(null);
   return <>
-    <PageTitle eyebrow="MY CLUB / ACTIVE LINEUP" title="My Squad" subtitle={clubLabel(profile.teamName)} action={<button className="outline-button" onClick={onGoClub}><Grid2X2 size={15} /> Browse Club</button>} />
+    <PageTitle eyebrow="MY CLUB / ACTIVE LINEUP" title="My Squad" subtitle={clubLabel(profile.teamName)} action={<div className="page-title-actions"><HltvSyncBadge sync={rosterSync} /><button className="outline-button" onClick={onGoClub}><Grid2X2 size={15} /> Browse Club</button></div>} />
     <div className="squad-hero">
       <div className="squad-hero-copy">
         <div className="eyebrow orange">ACTIVE SQUAD</div>
@@ -1961,7 +2025,7 @@ function CardInspectModal({ card, onClose, action }: { card: InspectCard; onClos
   </div>;
 }
 
-function StorePage({ coins, level, dailyReadyAt, iconPity, onBuyPack }: { coins: number; level: number; dailyReadyAt: number; iconPity: number; onBuyPack: (id: PackId, times?: number) => void }) {
+function StorePage({ coins, level, dailyReadyAt, iconPity, onBuyPack, rosterSync }: { coins: number; level: number; dailyReadyAt: number; iconPity: number; onBuyPack: (id: PackId, times?: number) => void; rosterSync: RosterSyncState }) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer); }, []);
   const discountPct = storeDiscount(level);
@@ -1969,7 +2033,7 @@ function StorePage({ coins, level, dailyReadyAt, iconPity, onBuyPack }: { coins:
   const dailyReady = remaining === 0;
   const pityProgress = Math.min(100, Math.round((iconPity / PITY_LIMIT) * 100));
   return <>
-    <PageTitle eyebrow="TRANSFER MARKET" title="Store / Packs" subtitle="Every pack is saved to My Club the moment you open it. Packs hold 2 or 3 cards." />
+    <PageTitle eyebrow="TRANSFER MARKET" title="Store / Packs" subtitle="Every pack is saved to My Club the moment you open it. Packs hold 2 or 3 cards." action={<HltvSyncBadge sync={rosterSync} />} />
     {discountPct > 0 && <div className="vip-strip"><Percent size={15} /><strong>MANAGER STORE DISCOUNT</strong><span>Level {level} manager: every pack is {Math.round(discountPct * 100)}% cheaper ({storeDiscountLabel(level)}).</span></div>}
     <div className="pity-strip"><Crown size={15} /><strong>ICON PITY</strong><div className="pity-meter"><i style={{ width: `${pityProgress}%` }} /></div><span>{iconPity} / {PITY_LIMIT} paid packs without an Icon · Icon guaranteed on pack {PITY_LIMIT + 1}</span></div>
     <div className="pack-grid">
@@ -3057,6 +3121,16 @@ function PackOverlay({ pack, onClose, onReveal, onRevealAll, onContinue }: { pac
   return <div className="pack-overlay"><div className="pack-modal"><button className="overlay-close" onClick={onClose}><X size={18} /></button><div className="eyebrow orange">PACK OPENING · SAVED TO CLUB</div><h2>Reveal your players</h2><p>Every card is already secured in My Club. Flip them one by one — Gold, Star and Icon pulls get a rarity walkout.</p><div className="pack-cards">{pack.map((card) => <div className="reveal-wrap" key={card.instanceId}>{card.revealed ? <div className="revealed-card" key={`${card.instanceId}-revealed`}><FutCard card={card} isNew /><div className="revealed-actions"><span className="actioned"><BadgeCheck size={14} /> Saved to My Club</span></div></div> : <button className="face-down" onClick={() => onReveal(card.instanceId)}><div className="face-logo"><Crosshair size={30} /><span>CS2</span></div><div className="face-lines" /><span>CLICK TO REVEAL</span></button>}</div>)}</div><div className="reveal-footer"><span>{revealedCount} / {pack.length} revealed</span>{revealedCount < pack.length ? <button className="primary-button" onClick={onRevealAll}><Sparkles size={15} /> Reveal All</button> : <button className="primary-button" onClick={onContinue}>Continue to My Club <ChevronRight size={15} /></button>}</div></div></div>;
 }
 
+
+function HltvSyncBadge({ sync }: { sync: RosterSyncState }) {
+  const live = sync.source === 'hltv';
+  const state = live ? 'Live HLTV ratings' : sync.source === 'seed' ? 'Seeded monthly snapshot' : sync.applied ? 'Cached monthly snapshot' : 'Built-in ratings; monthly snapshot unavailable';
+  const generated = sync.generatedAt ? new Date(sync.generatedAt) : null;
+  const updated = generated && !Number.isNaN(generated.getTime()) ? ` · updated ${generated.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : '';
+  return <span className={`hltv-sync-badge ${live ? 'live' : ''}`} title={`${state}${sync.matched ? ` · ${sync.matched} HLTV rating matches` : ''}${updated}`}>
+    <Radio size={12} /><i aria-hidden="true" />HLTV LIVE SYNC · {monthYearLabel(sync.month).toUpperCase()}
+  </span>;
+}
 
 function PageTitle({ eyebrow, title, subtitle, action }: { eyebrow: string; title: string; subtitle: string; action?: ReactNode }) { return <div className="page-title-row"><div><div className="eyebrow">{eyebrow}</div><h1>{title}</h1><p>{subtitle}</p></div>{action}</div>; }
 const CHEM_REGION: Record<string, string> = {
