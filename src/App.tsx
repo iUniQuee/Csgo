@@ -1401,7 +1401,7 @@ function App() {
   if (!authReady) return <div className="auth-boot"><div className="auth-spinner" /><span>LOADING ULTIMATE TEAM</span></div>;
   if (!session) return <AuthScreen onAuthenticated={setSession} />;
   if (!hydrated) return <div className="auth-boot"><div className="auth-spinner" /><span>LOADING YOUR CLUB</span></div>;
-  return <div className="ultimate-app min-h-screen bg-[#0f172a] text-slate-200">
+  return <div spellCheck={false} className="ultimate-app min-h-screen bg-[#0f172a] text-slate-200">
     <Sidebar page={page} setPage={setPage} profile={profile} league={league} />
     <main className="ultimate-main">
       <Header profile={profile} coins={coins} cloud={cloudSync} onLogout={handleLogout} />
