@@ -1807,3 +1807,57 @@
 .scrim-limit-label { display: inline-block; max-width: 240px; font-size: 10px; font-weight: 800; line-height: 1.35; letter-spacing: .05em; text-align: left; white-space: normal; }
 .primary-button:disabled, .league-ghost:disabled { opacity: .55; cursor: not-allowed; filter: grayscale(.4); }
 .league-actions .primary-button:disabled { white-space: normal; text-align: left; }
+
+/* ==== Compact store pack cards ==== */
+.pack-grid { margin-top: 1rem; gap: 1rem; }
+.pack-product .pack-art { height: 7rem; }
+.pack-art .pack-glow { height: 6rem; width: 6rem; }
+.pack-art .pack-symbol { height: 3.25rem; width: 3.25rem; border-radius: .85rem; box-shadow: 0 0 20px var(--pack-soft); }
+.pack-art .pack-symbol svg { width: 26px; height: 26px; }
+.pack-art strong { margin-top: .45rem; font-size: 1.05rem; line-height: 1.3rem; letter-spacing: .18em; }
+.pack-art span { margin-top: .15rem; font-size: 7px; letter-spacing: .22em; }
+.featured-label { padding: .22rem .5rem; font-size: 7px; letter-spacing: .07em; }
+.pack-product .pack-copy { padding: .85rem .9rem .9rem; }
+.pack-title-row h3 { font-size: .9rem; line-height: 1.25rem; }
+.pack-title-row span { padding: .18rem .4rem; font-size: 7px; }
+.pack-copy p { margin-top: .3rem; min-height: 0; font-size: .68rem; line-height: .95rem; }
+.pack-odds { margin-top: .55rem; padding-top: .45rem; }
+.pack-odds strong { margin-top: .1rem; font-size: 9px; line-height: .85rem; }
+.pack-copy .pack-buy-row { padding-top: .6rem; gap: .4rem; }
+.buy-button { min-height: 40px; margin-top: .55rem; padding: .5rem .4rem; font-size: .7rem; line-height: 1.05rem; }
+.pack-buy-row .buy-button { margin-top: 0; }
+.pack-buy-row.has-bulk .buy-button { padding: .5rem .75rem; }
+.pack-buy-row.has-bulk .buy-bulk { padding: .42rem .75rem; }
+.pack-copy .pack-vip, .pack-copy .pack-cooldown { margin-top: .35rem; font-size: 8px; line-height: .8rem; }
+@media (max-width: 1023px) { .pack-product .pack-art { height: 6.5rem; } }
+
+/* ==== Card inspect modal (My Squad / My Club / Market) ==== */
+.card-inspect-overlay { z-index: 80; }
+.card-inspect-modal { position: relative; display: grid; grid-template-columns: minmax(0, 210px) minmax(0, 1fr); align-items: start; gap: 1.25rem; width: 100%; max-width: 660px; max-height: calc(100vh - 2rem); overflow-y: auto; border: 1px solid #334155; border-radius: 1.1rem; background: linear-gradient(160deg, #172231, #0d1522); padding: 1.4rem; box-shadow: 0 30px 80px rgba(0, 0, 0, .65); }
+.card-inspect-card { display: flex; justify-content: center; }
+.card-inspect-card .fut-card { max-width: 210px; }
+.card-inspect-card .fut-card:hover { transform: none; }
+.card-inspect-body { display: flex; min-width: 0; flex-direction: column; }
+.card-inspect-body h2 { margin: .3rem 0 0; font-size: 1.35rem; font-weight: 900; line-height: 1.2; color: #fff; }
+.card-inspect-meta { display: flex; flex-wrap: wrap; gap: .35rem .9rem; margin-top: .45rem; }
+.card-inspect-meta span { display: inline-flex; align-items: center; gap: .3rem; font-size: 10px; font-weight: 700; letter-spacing: .05em; color: #94a3b8; }
+.card-inspect-meta svg { color: #fdba74; }
+.card-inspect-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .45rem; margin-top: 1rem; }
+.card-inspect-stats span { display: flex; flex-direction: column; align-items: center; gap: .15rem; border: 1px solid #263244; border-radius: .6rem; background: #101a28; padding: .5rem .25rem; }
+.card-inspect-stats small { font-size: 8px; font-weight: 900; letter-spacing: .12em; color: #64748b; }
+.card-inspect-stats b { font-size: 1.1rem; font-weight: 900; color: #f8fafc; font-variant-numeric: tabular-nums; }
+.card-inspect-level { margin-top: .9rem; }
+.card-inspect-level > div:first-child { display: flex; align-items: center; justify-content: space-between; gap: .5rem; font-size: 9px; font-weight: 900; letter-spacing: .08em; color: #94a3b8; }
+.card-inspect-level b { font-size: 9px; font-weight: 800; color: #fbbf24; }
+.card-inspect-xp { height: 6px; margin-top: .35rem; overflow: hidden; border-radius: 999px; background: rgba(148, 163, 184, .18); }
+.card-inspect-xp i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.card-inspect-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; margin-top: .9rem; border-top: 1px solid #263244; padding-top: .75rem; }
+.card-inspect-facts small { display: block; font-size: 8px; font-weight: 900; letter-spacing: .12em; color: #526078; }
+.card-inspect-facts strong { display: block; margin-top: .2rem; font-size: 11px; font-weight: 800; color: #e2e8f0; }
+.card-inspect-action { margin-top: 1rem; }
+.market-card[role="button"] { cursor: pointer; }
+@media (max-width: 560px) {
+  .card-inspect-modal { grid-template-columns: minmax(0, 1fr); max-width: 380px; }
+  .card-inspect-card .fut-card { max-width: 170px; }
+  .card-inspect-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

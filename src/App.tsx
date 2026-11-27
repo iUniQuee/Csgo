@@ -1648,6 +1648,7 @@ function RecentForm({ entries }: { entries: MatchForm[] }) {
 
 function SquadPage({ owned, squad, setSquad, teamRating, chemistry, perks, tactChemBonus, profile, onGoClub, quests, onClaimQuest }: { owned: OwnedCard[]; squad: Record<Role, string>; setSquad: (squad: Record<Role, string>) => void; teamRating: number; chemistry: number; perks: Perk[]; tactChemBonus: number; profile: Profile; onGoClub: () => void; quests: QuestState; onClaimQuest: (id: QuestId) => void }) {
   const chemAimPct = chemistry > 0 ? Math.ceil(chemistry / 20) : 0;
+  const [inspect, setInspect] = useState<OwnedCard | null>(null);
   return <>
     <PageTitle eyebrow="MY CLUB / ACTIVE LINEUP" title="My Squad" subtitle={clubLabel(profile.teamName)} action={<button className="outline-button" onClick={onGoClub}><Grid2X2 size={15} /> Browse Club</button>} />
     <div className="squad-hero">
@@ -1670,8 +1671,9 @@ function SquadPage({ owned, squad, setSquad, teamRating, chemistry, perks, tactC
     <TeamChemistryBar cards={roles.map((role) => owned.find((card) => card.instanceId === squad[role])).filter((card): card is OwnedCard => Boolean(card))} perks={perks} chemistry={chemistry} tactChemBonus={tactChemBonus} />
     <div className="chem-legend"><span className="chem-key team"><i />SAME PRO TEAM</span><span className="chem-key country"><i />SAME COUNTRY</span><span className="chem-key region"><i />SAME REGION</span><span className="chem-key icon"><i />ICON 90+ UNIVERSAL</span></div>
     <ChemistryLinks owned={owned} squad={squad} />
-    <div className="squad-grid">{roles.map((role) => <SquadSlot key={role} role={role} card={owned.find((item) => item.instanceId === squad[role])} onGoClub={onGoClub} onRemove={() => setSquad({ ...squad, [role]: '' })} />)}</div>
+    <div className="squad-grid">{roles.map((role) => <SquadSlot key={role} role={role} card={owned.find((item) => item.instanceId === squad[role])} onGoClub={onGoClub} onRemove={() => setSquad({ ...squad, [role]: '' })} onInspect={() => { const equipped = owned.find((item) => item.instanceId === squad[role]); if (equipped) setInspect(equipped); }} />)}</div>
     <div className="squad-tip"><Sparkles size={16} /><span><strong>Squad tip:</strong> Stack same pro team links for the strongest boost, then same country, then shared region ({'Europe/CIS'} · {'Asia-Pacific'} · {'Americas'}). Every 90+ Icon links green with anyone.</span></div>
+    {inspect && <CardInspectModal card={inspect} onClose={() => setInspect(null)} action={{ label: 'Remove from Squad', onClick: () => { setSquad({ ...squad, [inspect.role]: '' }); setInspect(null); } }} />}
   </>;
 }
 
@@ -1694,8 +1696,8 @@ function DailyQuestsPanel({ quests, onClaim, compact = false }: { quests: QuestS
   </div>;
 }
 
-function SquadSlot({ role, card, onGoClub, onRemove }: { role: Role; card?: OwnedCard; onGoClub: () => void; onRemove: () => void }) {
-  return <div className={`squad-slot ${card ? 'filled' : ''}`}>{card ? <><button className="remove-slot" onClick={onRemove}><X size={13} /></button><FutCard card={card} compact /></> : <button className="empty-slot" onClick={onGoClub}><div className="plus-mark">+</div><strong>{roleLabel(role)}</strong><span>ADD PLAYER</span></button>}<div className="slot-label">{roleLabel(role)}</div></div>;
+function SquadSlot({ role, card, onGoClub, onRemove, onInspect }: { role: Role; card?: OwnedCard; onGoClub: () => void; onRemove: () => void; onInspect: () => void }) {
+  return <div className={`squad-slot ${card ? 'filled' : ''}`}>{card ? <><button className="remove-slot" onClick={onRemove}><X size={13} /></button><FutCard card={card} compact onClick={onInspect} /></> : <button className="empty-slot" onClick={onGoClub}><div className="plus-mark">+</div><strong>{roleLabel(role)}</strong><span>ADD PLAYER</span></button>}<div className="slot-label">{roleLabel(role)}</div></div>;
 }
 
 function FutCard({ card, compact = false, onClick, locked = false, isNew = false }: { card: PlayerCard & { level?: number; xp?: number }; compact?: boolean; onClick?: () => void; locked?: boolean; isNew?: boolean }) {
@@ -1728,6 +1730,74 @@ function FutCard({ card, compact = false, onClick, locked = false, isNew = false
       {!locked && <span className={`card-level ${maxed ? 'max' : ''}`} title={maxed ? 'Maximum card level' : `${xp} / ${CARD_XP_STEP} XP to next level`}>{maxed && <Star size={8} fill="currentColor" />} LVL {level}{maxed ? ' MAX' : ` · ${xp} XP`}</span>}
     </span>
   </button>;
+}
+
+type InspectCard = PlayerCard & { level?: number; xp?: number };
+
+/** Market listings store a partial card snapshot, so rebuild a safe card shape before inspecting it. */
+const toInspectCard = (value: unknown): InspectCard | null => {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as Record<string, unknown>;
+  const tiers: Tier[] = ['Bronze', 'Silver', 'Gold', 'Star', 'Icon'];
+  const roles: Role[] = ['AWPer', 'Entry', 'IGL', 'Rifler', 'Lurker'];
+  const num = (input: unknown, fallback: number): number => {
+    const parsed = Math.round(Number(input));
+    return Number.isFinite(parsed) && parsed > 0 ? Math.min(99, parsed) : fallback;
+  };
+  const ovr = num(raw.ovr, 70);
+  const tier = tiers.includes(raw.tier as Tier) ? raw.tier as Tier : 'Gold';
+  const role = roles.includes(raw.role as Role) ? raw.role as Role : 'Rifler';
+  return {
+    id: typeof raw.id === 'string' ? raw.id : typeof raw.name === 'string' ? raw.name : 'unknown-player',
+    name: typeof raw.name === 'string' && raw.name.trim() ? raw.name : 'Unknown player',
+    team: typeof raw.team === 'string' ? raw.team : '',
+    country: typeof raw.country === 'string' ? raw.country : '',
+    role,
+    tier,
+    ovr,
+    aim: num(raw.aim, ovr),
+    rfl: num(raw.rfl, ovr),
+    sns: num(raw.sns, ovr),
+    clt: num(raw.clt, ovr),
+    level: Math.round(Number(raw.level)) || 1,
+    xp: Math.round(Number(raw.xp)) || 0,
+  };
+};
+
+function CardInspectModal({ card, onClose, action }: { card: InspectCard; onClose: () => void; action?: { label: string; onClick: () => void; disabled?: boolean } }) {
+  const power = cardPower(card);
+  const level = cardLevel(card.level);
+  const xp = cardXp(card.xp);
+  const maxed = level >= CARD_MAX_LEVEL;
+  const region = chemistryRegion(card.country) || card.country || 'Unknown';
+  const stats = [
+    { key: 'aim', label: 'AIM', value: power.aim },
+    { key: 'rfl', label: 'RFL', value: power.rfl },
+    { key: 'sns', label: 'SNS', value: power.sns },
+    { key: 'clt', label: 'CLT', value: power.clt },
+  ];
+  return <div className="league-overlay card-inspect-overlay" onClick={onClose}>
+    <div className="card-inspect-modal" role="dialog" aria-modal="true" aria-label={`${card.name} card details`} onClick={(event) => event.stopPropagation()}>
+      <button className="overlay-close" onClick={onClose} aria-label="Close card details"><X size={18} /></button>
+      <div className="card-inspect-card"><FutCard card={card} /></div>
+      <div className="card-inspect-body">
+        <div className="eyebrow orange">{card.tier.toUpperCase()} · {roleLabel(card.role)} · OVR {power.ovr}</div>
+        <h2>{card.name}</h2>
+        <div className="card-inspect-meta"><span><Shield size={12} /> {card.team || 'Free agent'}</span><span><Globe size={12} /> {region}</span></div>
+        <div className="card-inspect-stats">{stats.map((stat) => <span key={stat.key}><small>{stat.label}</small><b>{stat.value}</b></span>)}</div>
+        <div className="card-inspect-level">
+          <div><span>LEVEL {level}{maxed ? ' · MAX' : ` / ${CARD_MAX_LEVEL}`}</span><b>{maxed ? 'MAX LEVEL' : `${xp} / ${CARD_XP_STEP} XP`}</b></div>
+          <div className="card-inspect-xp"><i style={{ width: `${maxed ? 100 : Math.round((xp / CARD_XP_STEP) * 100)}%` }} /></div>
+        </div>
+        <div className="card-inspect-facts">
+          <div><small>PRO TEAM</small><strong>{card.team || 'Free agent'}</strong></div>
+          <div><small>REGION</small><strong>{region}</strong></div>
+          <div><small>COUNTRY</small><strong>{card.country || '—'}</strong></div>
+        </div>
+        {action && <button className="primary-button card-inspect-action" disabled={action.disabled} onClick={action.onClick}>{action.label}</button>}
+      </div>
+    </div>
+  </div>;
 }
 
 function StorePage({ coins, level, dailyReadyAt, iconPity, onBuyPack }: { coins: number; level: number; dailyReadyAt: number; iconPity: number; onBuyPack: (id: PackId, times?: number) => void }) {
@@ -1781,12 +1851,13 @@ function ClubPage({ owned, squad, setSquad, newCardIds, badge, claimedClubs, onC
   const [roleFilter, setRoleFilter] = useState<Role | 'All'>('All');
   const [query, setQuery] = useState('');
   const [sellTarget, setSellTarget] = useState<OwnedCard | null>(null);
+  const [inspect, setInspect] = useState<OwnedCard | null>(null);
   const filtered = owned.filter((card) => (tierFilter === 'All' || card.tier === tierFilter) && (roleFilter === 'All' || card.role === roleFilter) && card.name.toLowerCase().includes(query.toLowerCase()));
   const addToSquad = (card: OwnedCard): void => { if (Object.values(squad).includes(card.instanceId)) return; setSquad({ ...squad, [card.role]: card.instanceId }); };
   const ownedIds = new Set(owned.map((card) => card.id));
   const completedClubs = CLUB_GROUPS.filter((club) => club.players.every((player) => ownedIds.has(player.id))).length;
   const copies = (card: OwnedCard): number => owned.filter((item) => item.id === card.id).length;
-  return <><PageTitle eyebrow="YOUR COLLECTION" title="My Club" subtitle={view === 'owned' ? `${owned.length} player cards collected across five tiers.` : view === 'teams' ? `Complete a real club's five-man roster to claim its badge and 5,000 coins.` : `Explore every player available in the ${database.length}-card database.`} action={<div className="club-tabs"><button className={view === 'owned' ? 'active' : ''} onClick={() => setView('owned')}>My Owned Cards <span>{owned.length}</span></button><button className={view === 'catalog' ? 'active' : ''} onClick={() => setView('catalog')}>All Players Catalog <span>{database.length}</span></button><button className={view === 'teams' ? 'active' : ''} onClick={() => setView('teams')}>Teams <span>{completedClubs}/{CLUB_GROUPS.length}</span></button></div>} />{view === 'owned' ? <><div className="club-toolbar"><div className="search-box"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search player..." /></div><Filter size={14} className="text-slate-500" /><div className="pill-row">{(['All', 'Icon', 'Star', 'Gold', 'Silver', 'Bronze'] as (Tier | 'All')[]).map((tier) => <button key={tier} className={`filter-pill ${tierFilter === tier ? 'active' : ''}`} onClick={() => setTierFilter(tier)}>{tier}<span>{tier === 'All' ? owned.length : owned.filter((card) => card.tier === tier).length}</span></button>)}</div><div className="pill-row">{(['All', ...roles] as (Role | 'All')[]).map((role) => <button key={role} className={`filter-pill ${roleFilter === role ? 'active' : ''}`} onClick={() => setRoleFilter(role)}>{role === 'Lurker' ? 'Support' : role}</button>)}</div></div>{filtered.length ? <div className="club-grid">{filtered.map((card) => <div className="club-item" key={card.instanceId}><FutCard card={card} isNew={newCardIds.includes(card.instanceId)} onClick={() => addToSquad(card)} /><div className="club-actions"><button onClick={() => addToSquad(card)} className={Object.values(squad).includes(card.instanceId) ? 'active' : ''}>{Object.values(squad).includes(card.instanceId) ? <BadgeCheck size={14} /> : <Shield size={14} />} {Object.values(squad).includes(card.instanceId) ? 'In Squad' : `Use as ${card.role}`}</button>{copies(card) > 1 && cardLevel(card.level) < CARD_MAX_LEVEL && <button onClick={() => onUpgrade(card)} className="upgrade-button"><TrendingUp size={13} /> Upgrade (Lvl +1)<b>×{copies(card)}</b></button>}<button onClick={() => setSellTarget(card)} className="sell-button"><Coins size={13} /> Quick Sell +{tierConfig[card.tier].sell.toLocaleString()}</button></div></div>)}</div> : <div className="empty-club"><Box size={32} /><h3>No cards found</h3><p>Try another filter or open a pack to grow your club.</p></div>}</> : view === 'teams' ? <TeamsPanel owned={owned} badge={badge} claimedClubs={claimedClubs} onClaim={onClaimClub} onEquip={onEquipBadge} /> : <Catalog ownedIds={ownedIds} newCardIds={newCardIds} />}{sellTarget && <div className="league-overlay" onClick={() => setSellTarget(null)}><div className="confirm-modal" onClick={(event) => event.stopPropagation()}><div className="eyebrow orange">QUICK SELL</div><h3>Quick Sell {sellTarget.name}?</h3><p>{sellTarget.tier} · {sellTarget.role} · OVR {sellTarget.ovr}. This card leaves your club permanently.</p><strong className="confirm-value">+{tierConfig[sellTarget.tier].sell.toLocaleString()} Coins</strong><div className="confirm-actions"><button className="league-ghost" onClick={() => setSellTarget(null)}>Cancel</button><button className="primary-button" onClick={() => { onSell(sellTarget); setSellTarget(null); }}><Coins size={14} /> Quick Sell</button></div></div></div>}</>;
+  return <><PageTitle eyebrow="YOUR COLLECTION" title="My Club" subtitle={view === 'owned' ? `${owned.length} player cards collected across five tiers.` : view === 'teams' ? `Complete a real club's five-man roster to claim its badge and 5,000 coins.` : `Explore every player available in the ${database.length}-card database.`} action={<div className="club-tabs"><button className={view === 'owned' ? 'active' : ''} onClick={() => setView('owned')}>My Owned Cards <span>{owned.length}</span></button><button className={view === 'catalog' ? 'active' : ''} onClick={() => setView('catalog')}>All Players Catalog <span>{database.length}</span></button><button className={view === 'teams' ? 'active' : ''} onClick={() => setView('teams')}>Teams <span>{completedClubs}/{CLUB_GROUPS.length}</span></button></div>} />{view === 'owned' ? <><div className="club-toolbar"><div className="search-box"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search player..." /></div><Filter size={14} className="text-slate-500" /><div className="pill-row">{(['All', 'Icon', 'Star', 'Gold', 'Silver', 'Bronze'] as (Tier | 'All')[]).map((tier) => <button key={tier} className={`filter-pill ${tierFilter === tier ? 'active' : ''}`} onClick={() => setTierFilter(tier)}>{tier}<span>{tier === 'All' ? owned.length : owned.filter((card) => card.tier === tier).length}</span></button>)}</div><div className="pill-row">{(['All', ...roles] as (Role | 'All')[]).map((role) => <button key={role} className={`filter-pill ${roleFilter === role ? 'active' : ''}`} onClick={() => setRoleFilter(role)}>{role === 'Lurker' ? 'Support' : role}</button>)}</div></div>{filtered.length ? <div className="club-grid">{filtered.map((card) => <div className="club-item" key={card.instanceId}><FutCard card={card} isNew={newCardIds.includes(card.instanceId)} onClick={() => setInspect(card)} /><div className="club-actions"><button onClick={() => addToSquad(card)} className={Object.values(squad).includes(card.instanceId) ? 'active' : ''}>{Object.values(squad).includes(card.instanceId) ? <BadgeCheck size={14} /> : <Shield size={14} />} {Object.values(squad).includes(card.instanceId) ? 'In Squad' : 'Add to Squad'}</button>{copies(card) > 1 && cardLevel(card.level) < CARD_MAX_LEVEL && <button onClick={() => onUpgrade(card)} className="upgrade-button"><TrendingUp size={13} /> Upgrade (Lvl +1)<b>×{copies(card)}</b></button>}<button onClick={() => setSellTarget(card)} className="sell-button"><Coins size={13} /> Quick Sell +{tierConfig[card.tier].sell.toLocaleString()}</button></div></div>)}</div> : <div className="empty-club"><Box size={32} /><h3>No cards found</h3><p>Try another filter or open a pack to grow your club.</p></div>}</> : view === 'teams' ? <TeamsPanel owned={owned} badge={badge} claimedClubs={claimedClubs} onClaim={onClaimClub} onEquip={onEquipBadge} /> : <Catalog ownedIds={ownedIds} newCardIds={newCardIds} />}{sellTarget && <div className="league-overlay" onClick={() => setSellTarget(null)}><div className="confirm-modal" onClick={(event) => event.stopPropagation()}><div className="eyebrow orange">QUICK SELL</div><h3>Quick Sell {sellTarget.name}?</h3><p>{sellTarget.tier} · {sellTarget.role} · OVR {sellTarget.ovr}. This card leaves your club permanently.</p><strong className="confirm-value">+{tierConfig[sellTarget.tier].sell.toLocaleString()} Coins</strong><div className="confirm-actions"><button className="league-ghost" onClick={() => setSellTarget(null)}>Cancel</button><button className="primary-button" onClick={() => { onSell(sellTarget); setSellTarget(null); }}><Coins size={14} /> Quick Sell</button></div></div></div>}{inspect && <CardInspectModal card={inspect} onClose={() => setInspect(null)} action={{ label: Object.values(squad).includes(inspect.instanceId) ? 'In Squad' : 'Add to Squad', disabled: Object.values(squad).includes(inspect.instanceId), onClick: () => { addToSquad(inspect); setInspect(null); } }} />}</>;
 }
 
 function Catalog({ ownedIds, newCardIds }: { ownedIds: Set<string>; newCardIds: string[] }) {
@@ -1885,6 +1956,7 @@ function MarketPage({ userId, coins, owned, squad, onList, onBuy, onCancel, onCl
   const [rarityFilter, setRarityFilter] = useState<Tier | 'All'>('All');
   const [priceSort, setPriceSort] = useState<'newest' | 'price-low' | 'price-high'>('newest');
   const [sellTarget, setSellTarget] = useState<OwnedCard | null>(null);
+  const [inspect, setInspect] = useState<InspectCard | null>(null);
   const [price, setPrice] = useState('750');
   const [buying, setBuying] = useState<string | null>(null);
   const [note, setNote] = useState('');
@@ -1960,11 +2032,11 @@ function MarketPage({ userId, coins, owned, squad, onList, onBuy, onCancel, onCl
         const ovr = Math.min(99, Math.round(Number(card.ovr) || 0));
         const affordable = coins >= listing.price;
         const botListing = listing.sellerId.startsWith('bot:');
-        return <div className="market-card" key={listing.id}>
+        return <div className="market-card" key={listing.id} role="button" tabIndex={0} onClick={() => setInspect(toInspectCard(listing.card))} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setInspect(toInspectCard(listing.card)); } }}>
           <div className="market-card-top"><span className="team-emblem">{clubMonogram(typeof card.team === 'string' ? card.team : listing.sellerClub)}</span><div><strong>{name}</strong><small>{String(card.tier ?? 'Gold')} · {card.role === 'Lurker' ? 'Support' : String(card.role ?? 'Rifler')} · OVR {ovr}{Number(card.level) > 1 ? ` · Lvl ${Number(card.level)}` : ''}</small></div></div>
           <div className="market-seller"><span>SELLER</span><strong>{listing.sellerClub}{botListing && <em className="market-ai-badge">AI BOT</em>}</strong></div>
           <div className="market-price"><Coins size={15} /><strong>{listing.price.toLocaleString()}</strong><span>coins</span></div>
-          <button className="primary-button" disabled={!affordable || buying === listing.id} onClick={() => void runBuy(listing)}>{buying === listing.id ? 'Buying...' : affordable ? 'Buy now' : 'Not enough coins'}</button>
+          <button className="primary-button" disabled={!affordable || buying === listing.id} onClick={(event) => { event.stopPropagation(); void runBuy(listing); }}>{buying === listing.id ? 'Buying...' : affordable ? 'Buy now' : 'Not enough coins'}</button>
         </div>;
       })}</div> : <div className="empty-club"><Tag size={32} /><h3>{busy ? 'Loading listings...' : 'No cards on the market'}</h3><p>{query || roleFilter !== 'All' || rarityFilter !== 'All' ? 'No listing matches those filters.' : 'Be the first: list a surplus card from the Sell tab.'}</p></div>}
     </> : tab === 'sell' ? <>
@@ -1975,10 +2047,10 @@ function MarketPage({ userId, coins, owned, squad, onList, onBuy, onCancel, onCl
         <div className="confirm-actions"><button className="league-ghost" onClick={() => setSellTarget(null)}>Back</button><button className="primary-button" onClick={() => void submitListing()} disabled={!Number(price)}><Tag size={14} /> List on market</button></div>
       </div> : owned.length ? <div className="market-grid">{owned.map((card) => {
         const starting = inSquad.has(card.instanceId);
-        return <div className={`market-card ${starting ? 'in-squad' : ''}`} key={card.instanceId}>
+        return <div className={`market-card ${starting ? 'in-squad' : ''}`} key={card.instanceId} role="button" tabIndex={0} onClick={() => setInspect(card)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setInspect(card); } }}>
           <div className="market-card-top"><span className="team-emblem">{clubMonogram(card.team)}</span><div><strong>{card.name}</strong><small>{card.tier} · {card.role} · OVR {card.ovr}{card.level > 1 ? ` · Lvl ${card.level}` : ''}</small></div></div>
           <div className="market-seller"><span>QUICK SELL VALUE</span><strong>{tierConfig[card.tier].sell.toLocaleString()}</strong></div>
-          <button className="primary-button" disabled={starting} onClick={() => { setSellTarget(card); setPrice(String(Math.max(50, tierConfig[card.tier].sell * 3))); }}>{starting ? 'In your squad' : 'Choose price'}</button>
+          <button className="primary-button" disabled={starting} onClick={(event) => { event.stopPropagation(); setSellTarget(card); setPrice(String(Math.max(50, tierConfig[card.tier].sell * 3))); }}>{starting ? 'In your squad' : 'Choose price'}</button>
         </div>;
       })}</div> : <div className="empty-club"><Box size={32} /><h3>No cards to sell</h3><p>Open a pack or complete a league day to find surplus players.</p></div>}
     </> : <>
@@ -1994,6 +2066,7 @@ function MarketPage({ userId, coins, owned, squad, onList, onBuy, onCancel, onCl
         </div>;
       })}</div> : <div className="empty-club"><Tag size={32} /><h3>{busy ? 'Loading your listings...' : 'No listings yet'}</h3><p>Cards you put up for sale appear here with their status and payout.</p></div>}
     </>}
+    {inspect && <CardInspectModal card={inspect} onClose={() => setInspect(null)} />}
   </>;
 }
 
@@ -2274,6 +2347,7 @@ function ArenaPage({ userId, teamRating, chemistry, perks, league, setLeague, on
 function PostMatchScoreboard({ board, teamName, emblem, accent, opponentName, onClose }: { board: MatchScoreboard; teamName: string; emblem?: EmblemId; accent?: string; opponentName: string; onClose: () => void }) {
   const rowsFor = (side: 'us' | 'them') => board.rows.filter((row) => row.team === side);
   const mvpOnOurTeam = board.mvp.team === 'us';
+  const opponentLabel = opponentName || board.opponentName;
   return <div className="league-overlay postmatch-overlay" onClick={onClose}>
     <div className="postmatch-modal" onClick={(event) => event.stopPropagation()}>
       <button className="overlay-close" onClick={onClose} aria-label="Close scoreboard"><X size={18} /></button>
@@ -2289,11 +2363,11 @@ function PostMatchScoreboard({ board, teamName, emblem, accent, opponentName, on
       {(['us', 'them'] as const).map((side) => <div className="postmatch-block" key={side}>
         <div className="postmatch-block-head"><span>PLAYER</span><span>K</span><span>D</span><span>ADR</span><span>RATING</span></div>
         {rowsFor(side).map((row) => <div key={`${row.team}-${row.name}`} className={`scoreboard-row ${row.mvp ? 'is-mvp' : ''}`}>
-          <span className="scoreboard-player">{row.mvp && <i className="mvp-badge">★ MATCH MVP</i>}<b>{row.name}</b><small>{roleLabel(row.role)}</small></span>
+          <span className="scoreboard-player">{row.mvp && <i className="mvp-badge">★ MATCH MVP</i>}<b>{side === 'them' ? opponentLabel : row.name}</b><small>{roleLabel(row.role)}</small></span>
           <span>{row.kills}</span><span>{row.deaths}</span><span>{row.adr}</span><strong>{row.rating.toFixed(2)}</strong>
         </div>)}
       </div>)}
-      <div className="postmatch-foot">{mvpOnOurTeam ? <>★ <b>{board.mvp.name}</b> is your Match MVP — +50 coins added.</> : <>★ <b>{board.mvp.name}</b> took Match MVP for {opponentName}.</>}</div>
+      <div className="postmatch-foot">{mvpOnOurTeam ? <>★ <b>{board.mvp.name}</b> is your Match MVP — +50 coins added.</> : <>★ <b>{opponentLabel}</b> won the Match MVP award.</>}</div>
       <button className="primary-button postmatch-continue" onClick={onClose}>Continue</button>
     </div>
   </div>;
