@@ -1861,3 +1861,26 @@
   .card-inspect-card .fut-card { max-width: 170px; }
   .card-inspect-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* ==== Chemistry link diagram readability ==== */
+.chem-links { gap: .1rem; padding: .7rem .8rem; border-radius: .8rem; }
+.chem-node { min-width: 92px; gap: .25rem; padding: .5rem .45rem; border-radius: .6rem; }
+.chem-node span { font-size: 10px; font-weight: 900; letter-spacing: .09em; color: #e2e8f0; }
+.chem-node small { max-width: 104px; font-size: 12px; font-weight: 900; letter-spacing: .01em; text-transform: uppercase; color: var(--chem-color, #cbd5e1); }
+.chem-node.empty span, .chem-node.empty small { color: #94a3b8; }
+.chem-node .country-flag-svg { width: 26px; height: 17px; margin-top: .2rem; }
+.chem-link { height: 3px; }
+.chem-link i { width: 7px; height: 7px; }
+@media (max-width: 700px) {
+  .chem-links { padding: .55rem .6rem; }
+  .chem-link-unit { flex: 0 0 130px; }
+  .chem-node { min-width: 98px; }
+}
+
+/* ==== Five squad cards in one row on desktop ==== */
+@media (min-width: 1024px) {
+  .squad-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .85rem; }
+}
+@media (min-width: 1280px) {
+  .squad-grid { gap: 1rem; }
+}
