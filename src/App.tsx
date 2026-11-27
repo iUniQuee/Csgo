@@ -1622,6 +1622,7 @@ function FutCard({ card, compact = false, onClick, locked = false, isNew = false
       </span>
       <span className="card-portrait">
         {locked ? <LockKeyhole size={compact ? 25 : 34} /> : <>
+          <span className="card-watermark" aria-hidden="true"><CountryFlag code={card.country} /></span>
           <PlayerSilhouette compact={compact} />
           <span className="country-flag" title={card.country}><CountryFlag code={card.country} /></span>
           <span className="card-portrait-mark">{card.tier === 'Icon' ? <Crown size={compact ? 15 : 19} /> : <Shield size={compact ? 15 : 19} />}</span>

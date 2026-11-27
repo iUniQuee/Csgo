@@ -807,9 +807,9 @@
 .card-body{ position:relative; z-index:4; display:flex; flex-direction:column; height:100%; gap:.22rem; padding:.5rem .55rem .45rem; }
 .card-body .card-top{ position:relative; z-index:10; display:flex; align-items:flex-start; justify-content:space-between; gap:.25rem; }
 .card-ovr-block{ display:flex; flex-direction:column; line-height:1; }
-.card-ovr-block .card-ovr{ font-size:1.5rem; line-height:1; font-weight:900; letter-spacing:-.03em; text-shadow:0 1px 0 rgba(255,255,255,.3); }
-.card-ovr-block i{ margin-top:.12rem; font-style:normal; font-size:6px; font-weight:900; letter-spacing:.24em; opacity:.62; }
-.card-body .card-role{ margin:0; max-width:none; overflow:visible; white-space:nowrap; border-radius:999px; border:1px solid var(--card-ink-soft); padding:.1rem .34rem; font-size:6.5px; font-weight:900; letter-spacing:.12em; text-transform:uppercase; }
+.card-ovr-block .card-ovr{ font-size:1.7rem; line-height:1; font-weight:900; letter-spacing:-.03em; font-variant-numeric:tabular-nums; text-shadow:0 1px 0 rgba(255,255,255,.5),0 1px 2px rgba(2,6,23,.28); }
+.card-ovr-block i{ margin-top:.14rem; font-style:normal; font-size:6.5px; font-weight:900; letter-spacing:.22em; opacity:.8; text-shadow:0 1px 0 rgba(255,255,255,.35); }
+.card-body .card-role{ margin:0; max-width:none; overflow:visible; white-space:nowrap; border-radius:999px; border:1px solid rgba(2,6,23,.5); background:rgba(255,255,255,.24); padding:.16rem .46rem; font-size:8px; font-weight:900; letter-spacing:.1em; text-transform:uppercase; box-shadow:0 1px 1px rgba(255,255,255,.25); }
 .card-rarity-icon{ display:inline-flex; align-items:center; justify-content:center; width:1.05rem; height:1.05rem; border-radius:999px; background:rgba(2,6,23,.14); color:inherit; opacity:.85; }
 .card-body .card-portrait{
   position:relative; z-index:10; flex:1 1 auto; min-height:0; width:100%; height:auto; margin:.05rem 0 0;
@@ -822,23 +822,44 @@
 .card-portrait .flag-glyph{ font-size:1.1rem; line-height:1; filter:drop-shadow(0 1px 1px rgba(2,6,23,.4)); }
 .card-portrait .country-flag i{ font-style:normal; font-size:7px; font-weight:900; letter-spacing:.12em; opacity:.72; }
 .card-portrait .card-portrait-mark{ display:inline-flex; align-items:center; justify-content:center; opacity:.42; }
+
+/* center detail: esports tech pattern + oversized country flag watermark */
+.card-body .card-portrait::before{
+  content:""; position:absolute; inset:0; z-index:0; pointer-events:none; opacity:.85;
+  background:
+    repeating-linear-gradient(0deg,rgba(15,23,42,.13) 0 1px,transparent 1px 13px),
+    repeating-linear-gradient(90deg,rgba(15,23,42,.13) 0 1px,transparent 1px 13px),
+    repeating-linear-gradient(135deg,rgba(255,255,255,.2) 0 1px,transparent 1px 17px),
+    radial-gradient(72% 62% at 50% 50%,rgba(255,255,255,.22),transparent 72%);
+}
+.card-portrait .card-watermark{
+  position:absolute; left:50%; top:50%; z-index:0; display:flex; align-items:center; justify-content:center;
+  width:76%; aspect-ratio:24/16; transform:translate(-50%,-50%) rotate(-7deg); pointer-events:none;
+  opacity:.2; filter:saturate(.8) drop-shadow(0 1px 2px rgba(2,6,23,.25));
+}
+.card-watermark .country-flag-svg{ width:100%; height:auto; border:0; border-radius:4px; box-shadow:none; }
+.card-portrait > svg{ position:relative; z-index:1; }
+.card-portrait > .player-silhouette{ position:absolute; inset:0; z-index:0; }
+.card-portrait > .country-flag,.card-portrait > .card-portrait-mark{ position:relative; z-index:1; }
 .card-body .card-name{
-  position:relative; z-index:10; margin:0; font-size:.72rem; line-height:1.05; font-weight:900;
-  letter-spacing:.01em; text-align:center; text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  position:relative; z-index:10; margin:0; font-size:.82rem; line-height:1.05; font-weight:900;
+  letter-spacing:.012em; text-align:center; text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  text-shadow:0 1px 0 rgba(255,255,255,.42),0 1px 2px rgba(2,6,23,.18);
 }
 .card-body .card-team{
   position:relative; z-index:10; display:flex; align-items:center; justify-content:center; gap:.22rem;
-  font-size:6.5px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; white-space:nowrap; overflow:hidden; opacity:.72;
+  font-size:7px; font-weight:900; letter-spacing:.09em; text-transform:uppercase; white-space:nowrap; overflow:hidden; opacity:.9;
+  text-shadow:0 1px 0 rgba(255,255,255,.3);
 }
 .card-team svg{ flex:none; }
 .card-body .card-stats{
   position:relative; z-index:10; margin-top:.05rem; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0;
-  border-top:1px solid rgba(2,6,23,.22); padding-top:.28rem; text-align:center;
-  font-size:6.5px; font-weight:800; letter-spacing:.06em; opacity:.95;
+  border-top:1px solid rgba(2,6,23,.28); padding-top:.28rem; text-align:center;
+  font-size:7px; font-weight:900; letter-spacing:.06em; opacity:1;
 }
 .card-stats>span{ display:flex; flex-direction:column; gap:.05rem; min-width:0; }
 .card-stats>span+span{ border-left:1px solid rgba(2,6,23,.14); }
-.card-stats b{ display:block; font-size:12px; line-height:1; font-weight:900; letter-spacing:0; }
+.card-stats b{ display:block; font-size:13.5px; line-height:1; font-weight:900; letter-spacing:0; font-variant-numeric:tabular-nums; text-shadow:0 1px 0 rgba(255,255,255,.4); }
 .card-body .card-level{
   position:relative; left:auto; bottom:auto; transform:none; align-self:center; z-index:20;
   display:inline-flex; align-items:center; justify-content:center; gap:.16rem; margin-top:.18rem;
@@ -881,14 +902,31 @@
     linear-gradient(168deg,#091428 0%,#122c63 30%,#1e3a8a 55%,#132a5e 76%,#091428 100%);
   animation:none;
 }
+.fut-card.tier-star .card-portrait::before{
+  background:
+    repeating-linear-gradient(0deg,rgba(255,255,255,.11) 0 1px,transparent 1px 13px),
+    repeating-linear-gradient(90deg,rgba(255,255,255,.11) 0 1px,transparent 1px 13px),
+    repeating-linear-gradient(135deg,rgba(233,198,255,.22) 0 1px,transparent 1px 17px),
+    radial-gradient(72% 62% at 50% 50%,rgba(255,255,255,.12),transparent 72%);
+}
+.fut-card.tier-icon .card-portrait::before{
+  background:
+    repeating-linear-gradient(0deg,rgba(212,175,55,.18) 0 1px,transparent 1px 13px),
+    repeating-linear-gradient(90deg,rgba(212,175,55,.18) 0 1px,transparent 1px 13px),
+    repeating-linear-gradient(135deg,rgba(255,233,168,.22) 0 1px,transparent 1px 17px),
+    radial-gradient(72% 62% at 50% 50%,rgba(212,175,55,.24),transparent 72%);
+}
+.fut-card.tier-star .card-watermark,.fut-card.tier-icon .card-watermark{ opacity:.26; filter:saturate(.9) drop-shadow(0 1px 2px rgba(0,0,0,.45)); }
+.fut-card.tier-star .card-ovr-block .card-ovr{ color:#ffffff; text-shadow:0 2px 4px rgba(42,10,74,.85),0 0 10px rgba(216,180,254,.35); }
+.fut-card.tier-star .card-ovr-block i,.fut-card.tier-icon .card-ovr-block i{ text-shadow:0 1px 2px rgba(0,0,0,.7); }
 .fut-card.tier-star .card-name,.fut-card.tier-star .card-team{ color:#ffffff; text-shadow:0 1px 2px rgba(2,6,23,.8); }
-.fut-card.tier-star .card-role{ border-color:rgba(216,180,254,.55); background:rgba(42,10,74,.5); color:#f5e8ff; }
+.fut-card.tier-star .card-role{ border-color:rgba(216,180,254,.55); background:rgba(42,10,74,.5); color:#f5e8ff; box-shadow:0 0 8px rgba(168,85,247,.24); }
 .fut-card.tier-star .card-stats{ border-top-color:rgba(233,198,255,.4); color:#f3e8ff; }
 .fut-card.tier-star .card-stats>span+span{ border-left-color:rgba(233,198,255,.28); }
 .fut-card.tier-star .card-stats b{ color:#ffffff; text-shadow:0 1px 2px rgba(2,6,23,.75); }
 .fut-card.tier-icon .card-name,.fut-card.tier-icon .card-team{ color:#ffffff; text-shadow:0 1px 2px rgba(0,0,0,.9),0 0 10px rgba(2,6,23,.6); }
-.fut-card.tier-icon .card-ovr-block .card-ovr{ color:#f7d97f; text-shadow:0 2px 4px rgba(0,0,0,.85); }
-.fut-card.tier-icon .card-role{ border-color:rgba(212,175,55,.55); background:rgba(9,20,40,.55); color:#ffe9a8; }
+.fut-card.tier-icon .card-ovr-block .card-ovr{ color:#f7d97f; text-shadow:0 2px 4px rgba(0,0,0,.9),0 0 12px rgba(212,175,55,.4); }
+.fut-card.tier-icon .card-role{ border-color:rgba(212,175,55,.62); background:rgba(9,20,40,.6); color:#ffe9a8; box-shadow:0 0 8px rgba(212,175,55,.22); }
 .fut-card.tier-icon .card-stats{ border-top-color:rgba(212,175,55,.45); color:#dbeafe; }
 .fut-card.tier-icon .card-stats>span+span{ border-left-color:rgba(212,175,55,.3); }
 .fut-card.tier-icon .card-stats b{ color:#ffe9a8; text-shadow:0 1px 2px rgba(0,0,0,.9); }
@@ -908,16 +946,28 @@
 .fut-card.maxed{ box-shadow:none !important; filter:drop-shadow(0 0 14px rgba(250,204,21,.55)) drop-shadow(0 0 30px rgba(85,232,239,.35)); }
 .fut-card.compact{ max-width:180px; aspect-ratio:.66; }
 .fut-card.compact .card-body{ padding:.42rem .46rem .38rem; gap:.16rem; }
-.fut-card.compact .card-ovr-block .card-ovr{ font-size:1.2rem; }
-.fut-card.compact .card-role{ font-size:6px; padding:.08rem .28rem; }
-.fut-card.compact .card-body .card-name{ font-size:.64rem; }
-.fut-card.compact .card-stats b{ font-size:10.5px; }
+.fut-card.compact .card-ovr-block .card-ovr{ font-size:1.36rem; }
+.fut-card.compact .card-role{ font-size:7px; padding:.13rem .38rem; }
+.fut-card.compact .card-body .card-name{ font-size:.72rem; }
+.fut-card.compact .card-stats b{ font-size:11.5px; }
 .fut-card.compact .card-body .card-level{ font-size:6px; padding:.08rem .34rem; }
 @media (max-width:480px){
   .fut-card{ max-width:100%; }
   .card-body{ padding:.4rem .45rem .34rem; }
-  .card-ovr-block .card-ovr{ font-size:1.3rem; }
+  .card-ovr-block .card-ovr{ font-size:1.45rem; }
 }
+
+/* ==== club card action buttons ==== */
+.club-actions button{
+  border-color:rgba(148,163,184,.5); background:#243247; color:#e8eef7;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 1px 3px rgba(2,6,23,.35);
+}
+.club-actions button:hover{ border-color:rgba(251,146,60,.8); background:#2c3d54; color:#fdba74; }
+.club-actions button.active{ border-color:rgba(52,211,153,.6); background:rgba(52,211,153,.18); color:#a7f3d0; }
+.club-actions .sell-button{ border-color:rgba(251,113,133,.5); background:rgba(251,113,133,.12); color:#fda4af; }
+.club-actions .sell-button:hover{ border-color:#fb7185; background:rgba(251,113,133,.26); color:#fecdd3; }
+.club-actions .upgrade-button{ border-color:rgba(52,211,153,.55); background:rgba(52,211,153,.12); color:#6ee7b7; box-shadow:0 0 14px rgba(52,211,153,.22); }
+.club-actions .upgrade-button:hover{ border-color:#34d399; background:rgba(52,211,153,.24); color:#d1fae5; box-shadow:0 0 18px rgba(52,211,153,.4); }
 
 /* ==== Squad emblem tint + chemistry legend ==== */
 .squad-emblem{ background:color-mix(in srgb,var(--emblem-color,#fb923c) 18%,transparent); border-color:color-mix(in srgb,var(--emblem-color,#fb923c) 55%,transparent); color:var(--emblem-color,#fdba74); }
