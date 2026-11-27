@@ -111,65 +111,31 @@ export const leagueService = {
   async fetchDivision(division: number): Promise<OnlineTeamRow[]> {
     const client = getSupabase();
     if (!client) return [];
-    const seats: OnlineTeamRow[] = [];
+    const seats = new Map<string, OnlineTeamRow>();
+    const divisionFilter = division === 0 ? 'division.eq.0,division.is.null' : `division.eq.${division}`;
+
+    // 1. Every registered manager in the division, seat record or not. This is
+    // what keeps a brand-new account in the same room as the managers who were
+    // already there: each real player is returned exactly once.
     try {
-      const { data, error } = await client
-        .from('league_teams')
-        .select('user_id, club_name, division, zone, squad_ovr, wins, losses, round_diff, points, updated_at, profiles(manager_name, avatar)')
-        .eq('division', division)
-        .order('points', { ascending: false })
-        .order('round_diff', { ascending: false })
-        .order('updated_at', { ascending: true })
-        .limit(16);
-      if (error) throw error;
-      (data ?? []).forEach((raw) => {
-        const row = raw as TeamRow;
-        const userId = text(row.user_id);
-        if (!userId) return;
-        const profile = embeddedProfile(row);
-        seats.push({
-          userId,
-          clubName: text(row.club_name, 'NEW CLUB'),
-          managerName: text(profile?.manager_name, 'MANAGER'),
-          avatar: text(profile?.avatar, 'falcon'),
-          division: number(row.division),
-          zone: number(row.zone),
-          squadOvr: number(row.squad_ovr, 50),
-          wins: number(row.wins),
-          losses: number(row.losses),
-          roundDiff: number(row.round_diff),
-          points: number(row.points),
-          updatedAt: row.updated_at ? Date.parse(row.updated_at) : 0,
-        });
-      });
-    } catch (error) {
-      report('[league_teams] Could not load the division table. Did you run the SQL script?', error);
-      return [];
-    }
-    if (seats.length >= 16) return seats;
-    // A freshly registered manager may not have a league_teams row yet; seat them
-    // from their profile at 0 points so they still appear in the shared division.
-    try {
-      const known = new Set(seats.map((seat) => seat.userId));
       const { data, error } = await client
         .from('profiles')
         .select('id, club_name, manager_name, avatar, division, zone, updated_at')
-        .eq('division', division)
+        .or(divisionFilter)
         .order('updated_at', { ascending: true })
-        .limit(16);
+        .limit(64);
       if (error) throw error;
       (data ?? []).forEach((raw) => {
-        const row = raw as { id?: string | null; club_name?: string | null; manager_name?: string | null; avatar?: string | null; division?: number | null; zone?: number | null; updated_at?: string | null };
+        const row = raw as { id?: string | null; club_name?: string | null; manager_name?: string | null; avatar?: string | null; updated_at?: string | null };
         const userId = text(row.id);
-        if (!userId || known.has(userId) || seats.length >= 16) return;
-        known.add(userId);
-        seats.push({
+        if (!userId) return;
+        seats.set(userId, {
           userId,
           clubName: text(row.club_name, 'NEW CLUB'),
           managerName: text(row.manager_name, 'MANAGER'),
           avatar: text(row.avatar, 'falcon'),
-          division: number(row.division, division),
-          zone: number(row.zone),
+          division,
+          zone: 0,
           squadOvr: 50,
           wins: 0,
           losses: 0,
@@ -178,10 +144,61 @@ export const leagueService = {
           updatedAt: row.updated_at ? Date.parse(row.updated_at) : 0,
         });
       });
-    } catch {
-      // The extra profile pass is best-effort; the seat table above is enough.
+    } catch (error) {
+      report('[profiles] Could not load the division managers.', error);
     }
-    return seats;
+
+    // 2. The live seat record overrides the profile defaults: wins, losses,
+    // round difference and points always come from `league_teams`, so existing
+    // managers keep their season record. Older schemas without the profiles
+    // relationship still work through the plain select.
+    const selects = [
+      'user_id, club_name, division, zone, squad_ovr, wins, losses, round_diff, points, updated_at, profiles(manager_name, avatar)',
+      'user_id, club_name, division, zone, squad_ovr, wins, losses, round_diff, points, updated_at',
+    ];
+    for (const columns of selects) {
+      try {
+        const { data, error } = await client
+          .from('league_teams')
+          .select(columns)
+          .or(divisionFilter)
+          .order('updated_at', { ascending: true })
+          .limit(64);
+        if (error) throw error;
+        (data ?? []).forEach((raw) => {
+          const row = raw as TeamRow;
+          const userId = text(row.user_id);
+          if (!userId) return;
+          const profile = embeddedProfile(row);
+          const known = seats.get(userId);
+          seats.set(userId, {
+            userId,
+            clubName: text(row.club_name, known?.clubName ?? 'NEW CLUB'),
+            managerName: text(profile?.manager_name, known?.managerName ?? 'MANAGER'),
+            avatar: text(profile?.avatar, known?.avatar ?? 'falcon'),
+            division,
+            // One shared table per division: every real manager joins Zone A
+            // until the room is full, whatever zone column an old row carries.
+            zone: 0,
+            squadOvr: number(row.squad_ovr, known?.squadOvr ?? 50),
+            wins: number(row.wins, known?.wins ?? 0),
+            losses: number(row.losses, known?.losses ?? 0),
+            roundDiff: number(row.round_diff, known?.roundDiff ?? 0),
+            points: number(row.points, known?.points ?? 0),
+            updatedAt: row.updated_at ? Date.parse(row.updated_at) : known?.updatedAt ?? 0,
+          });
+        });
+        break;
+      } catch (error) {
+        report('[league_teams] Could not load the division table. Did you run the SQL script?', error);
+      }
+    }
+
+    // Ranked exactly like the table: points, then round difference, then the
+    // manager who has held the seat longest.
+    return [...seats.values()]
+      .sort((a, b) => b.points - a.points || b.roundDiff - a.roundDiff || a.updatedAt - b.updatedAt)
+      .slice(0, 16);
   },
 
   /**
