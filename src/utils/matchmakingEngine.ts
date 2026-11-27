@@ -43,6 +43,8 @@ export type LeagueTeam = {
   perk?: string;
   perk2?: string;
   squad?: SquadCard[];
+  /** Last five result letters, oldest first, for the league FORM column. */
+  form?: Array<'W' | 'L'>;
   /** Arrival ticket: a mid-day joiner sits below every team already in the room on 0 points. */
   joinedAt?: number;
 };

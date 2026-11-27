@@ -371,10 +371,12 @@ const createAgent = (player: RadarDuelist, side: Side, map: RadarMap, index: num
   };
 };
 
-const createRadarRound = (map: RadarMap, ours: RadarDuelist[], theirs: RadarDuelist[]): RadarState => {
+const createRadarRound = (map: RadarMap, ours: RadarDuelist[], theirs: RadarDuelist[], swapSides = false): RadarState => {
+  const ourSide: Side = swapSides ? 't' : 'ct';
+  const theirSide: Side = swapSides ? 'ct' : 't';
   const agents = [
-    ...ours.slice(0, 5).map((player, index) => createAgent(player, 'ct', map, index)),
-    ...theirs.slice(0, 5).map((player, index) => createAgent(player, 't', map, index)),
+    ...ours.slice(0, 5).map((player, index) => createAgent(player, ourSide, map, index)),
+    ...theirs.slice(0, 5).map((player, index) => createAgent(player, theirSide, map, index)),
   ];
   return {
     tick: 0,
@@ -416,11 +418,11 @@ const canSee = (viewer: Agent, target: Agent, smokes: Smoke[], now: number): boo
   return !smokes.some((smoke) => pointSegmentDistance({ x: smoke.x, y: smoke.y }, viewer, target) < smoke.radius);
 };
 
-const advanceRadar = (state: RadarState, map: RadarMap, ours: RadarDuelist[], theirs: RadarDuelist[], economy: RadarEconomy, tactic: RadarTactic): RadarState => {
+const advanceRadar = (state: RadarState, map: RadarMap, ours: RadarDuelist[], theirs: RadarDuelist[], economy: RadarEconomy, tactic: RadarTactic, swapSides = false): RadarState => {
   const now = Date.now();
   if (state.respawnAt !== null) {
     if (now < state.respawnAt) return state;
-    return createRadarRound(map, ours, theirs);
+    return createRadarRound(map, ours, theirs, swapSides);
   }
 
   const agents = state.agents.map((agent) => ({ ...agent, alert: agent.alert ? { ...agent.alert } : null }));
@@ -662,7 +664,7 @@ const advanceRadar = (state: RadarState, map: RadarMap, ours: RadarDuelist[], th
   return { tick, agents, markers, rings, tracers, smokes, fires, flashes, c4, fakeUsed, clutch, event, respawnAt };
 };
 
-export function TacticalRadar({ mapId, ours, theirs, opponentName, round, paused, speed, broadcast, economy, tactic }: {
+export function TacticalRadar({ mapId, ours, theirs, opponentName, round, paused, speed, broadcast, economy, tactic, swapSides = false }: {
   mapId: RadarMapId;
   ours: RadarDuelist[];
   theirs: RadarDuelist[];
@@ -673,9 +675,10 @@ export function TacticalRadar({ mapId, ours, theirs, opponentName, round, paused
   broadcast?: boolean;
   economy: RadarEconomy;
   tactic: RadarTactic;
+  swapSides?: boolean;
 }) {
   const map = MAPS[mapId];
-  const rosterKey = `${ours.map((player) => player.name).join('|')}::${theirs.map((player) => player.name).join('|')}`;
+  const rosterKey = `${ours.map((player) => player.name).join('|')}::${theirs.map((player) => player.name).join('|')}::${swapSides ? 'swap' : 'normal'}`;
   const rosterRef = useRef({ ours, theirs });
   rosterRef.current = { ours, theirs };
   const economyRef = useRef(economy);
@@ -683,26 +686,26 @@ export function TacticalRadar({ mapId, ours, theirs, opponentName, round, paused
   const tacticRef = useRef(tactic);
   tacticRef.current = tactic;
   const initial = useRef<RadarState | null>(null);
-  if (!initial.current) initial.current = createRadarRound(map, ours, theirs);
+  if (!initial.current) initial.current = createRadarRound(map, ours, theirs, swapSides);
   const [state, setState] = useState<RadarState>(() => initial.current as RadarState);
   const stateRef = useRef(state);
   stateRef.current = state;
 
   useEffect(() => {
-    const fresh = createRadarRound(MAPS[mapId], rosterRef.current.ours, rosterRef.current.theirs);
+    const fresh = createRadarRound(MAPS[mapId], rosterRef.current.ours, rosterRef.current.theirs, swapSides);
     stateRef.current = fresh;
     setState(fresh);
-  }, [mapId, rosterKey]);
+  }, [mapId, rosterKey, swapSides]);
 
   useEffect(() => {
     if (paused) return;
     const timer = window.setInterval(() => {
-      const next = advanceRadar(stateRef.current, MAPS[mapId], rosterRef.current.ours, rosterRef.current.theirs, economyRef.current, tacticRef.current);
+      const next = advanceRadar(stateRef.current, MAPS[mapId], rosterRef.current.ours, rosterRef.current.theirs, economyRef.current, tacticRef.current, swapSides);
       stateRef.current = next;
       setState(next);
     }, speed === 2 ? 230 : 380);
     return () => window.clearInterval(timer);
-  }, [mapId, paused, speed]);
+  }, [mapId, paused, speed, swapSides]);
 
   const now = Date.now();
   return (
@@ -848,8 +851,8 @@ export function TacticalRadar({ mapId, ours, theirs, opponentName, round, paused
       </div>
       <div className="radar-foot">
         <div className="radar-legend">
-          <span><i className="legend-dot ct" /> YOUR FIVE</span>
-          <span><i className="legend-dot t" /> {opponentName.toUpperCase()}</span>
+          <span><i className={`legend-dot ${swapSides ? 't' : 'ct'}`} /> YOUR FIVE · {swapSides ? 'T' : 'CT'}</span>
+          <span><i className={`legend-dot ${swapSides ? 'ct' : 't'}`} /> {opponentName.toUpperCase()} · {swapSides ? 'CT' : 'T'}</span>
           <span><i className="legend-cone" /> VISION</span>
           <span><i className="legend-ring" /> FOOTSTEPS</span>
           <span><i className="legend-smoke" /> SMOKE</span>

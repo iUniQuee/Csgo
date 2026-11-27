@@ -404,6 +404,12 @@ function sortLeague(teams: LeagueTeam[]): LeagueTeam[] {
   return [...teams].sort((a, b) => b.points - a.points || b.roundDiff - a.roundDiff || b.wins - a.wins || b.ovr - a.ovr);
 }
 
+/** Keeps the last-five FORM column on the league table in sync with results. */
+const withForm = (team: LeagueTeam, won: boolean): void => {
+  const next: Array<'W' | 'L'> = [...(team.form ?? []), won ? 'W' : 'L'];
+  team.form = next.slice(-5);
+};
+
 function buildSchedule(teamIds: string[]): [string, string][][] {
   const pool = [...teamIds];
   const odd = pool.length % 2 === 1;
@@ -516,6 +522,7 @@ function applyLeaguePairs(teams: LeagueTeam[], pairs: [string, string][]): { use
     home.wins += homeWon ? 1 : 0; home.losses += homeWon ? 0 : 1;
     away.wins += homeWon ? 0 : 1; away.losses += homeWon ? 1 : 0;
     home.points += homeWon ? 3 : 0; away.points += homeWon ? 0 : 3;
+    withForm(home, homeWon); withForm(away, !homeWon);
     home.roundDiff += outcome.homeScore - outcome.awayScore;
     away.roundDiff += outcome.awayScore - outcome.homeScore;
     if (homeId === 'user') { userWon = homeWon; us = outcome.homeScore; them = outcome.awayScore; }
@@ -626,6 +633,7 @@ function settleLiveLeagueSlot(league: LeagueState, slotStart: number, teamRating
     user.losses += won ? 0 : 1;
     user.points += won ? 3 : 0;
     user.roundDiff += score.us - score.them;
+    withForm(user, won);
   }
   applyLeaguePairs(teams, pairs.filter((pair) => !pair.includes('user')));
   const done = slot + 1;
@@ -1822,6 +1830,51 @@ function StorePage({ coins, level, dailyReadyAt, iconPity, onBuyPack }: { coins:
   </>;
 }
 
+/** Layered foil pack: three fanned card silhouettes behind a crimped foil wrapper. */
+function PackFoil({ pack, icon }: { pack: PackDefinition; icon: ReactNode }) {
+  const faceId = `foil-face-${pack.id}`;
+  const shineId = `foil-shine-${pack.id}`;
+  const clipId = `foil-clip-${pack.id}`;
+  return <div className="foil-stage">
+    <div className="foil-glow" />
+    <svg className="foil-svg" viewBox="0 0 132 96" aria-hidden="true">
+      <defs>
+        <linearGradient id={faceId} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="var(--pack-color)" stopOpacity=".95" />
+          <stop offset=".48" stopColor="#0b1220" />
+          <stop offset="1" stopColor="var(--pack-color)" stopOpacity=".62" />
+        </linearGradient>
+        <linearGradient id={shineId} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#fff" stopOpacity=".02" />
+          <stop offset=".45" stopColor="#fff" stopOpacity=".5" />
+          <stop offset=".62" stopColor="#fff" stopOpacity=".06" />
+          <stop offset="1" stopColor="#fff" stopOpacity="0" />
+        </linearGradient>
+        <clipPath id={clipId}><rect x="44" y="12" width="46" height="72" rx="5" /></clipPath>
+      </defs>
+      <g className="foil-cards">
+        <g transform="rotate(-18 67 52)"><rect className="foil-shot back" x="48" y="16" width="38" height="60" rx="4" /><path className="foil-shot-line" d="M55 30h24M55 38h18M55 62h24" /></g>
+        <g transform="rotate(18 67 52)"><rect className="foil-shot back" x="48" y="16" width="38" height="60" rx="4" /><path className="foil-shot-line" d="M55 30h24M55 38h18M55 62h24" /></g>
+        <g transform="rotate(0 67 52)"><rect className="foil-shot front" x="48" y="14" width="38" height="62" rx="4" /><circle className="foil-shot-dot" cx="67" cy="36" r="6" /><path className="foil-shot-line front" d="M56 50h22M56 57h14M56 66h22" /></g>
+      </g>
+      <g className="foil-body">
+        <rect className="foil-face" x="44" y="12" width="46" height="72" rx="5" fill={`url(#${faceId})`} />
+        <g clipPath={`url(#${clipId})`}>
+          <rect className="foil-sheen" x="44" y="12" width="46" height="72" fill={`url(#${shineId})`} />
+          <path className="foil-streak" d="M50 84L70 12M62 84L82 12" />
+        </g>
+        <rect className="foil-crimp" x="44" y="12" width="46" height="9" rx="3" />
+        <rect className="foil-crimp bottom" x="44" y="75" width="46" height="9" rx="3" />
+        <path className="foil-crimp-line" d="M48 16.5h38M48 79.5h38" />
+        <rect className="foil-frame" x="44" y="12" width="46" height="72" rx="5" />
+        <text className="foil-label" x="67" y="73" textAnchor="middle">{pack.art}</text>
+      </g>
+    </svg>
+    <span className="foil-icon">{icon}</span>
+    <span className="foil-spark one" /><span className="foil-spark two" /><span className="foil-spark three" />
+  </div>;
+}
+
 function PackProduct({ pack, price, discountPct, disabled, bulkDisabled, cooldownLabel, onBuy, onBuyBulk }: { pack: PackDefinition; price: number; discountPct: number; disabled: boolean; bulkDisabled?: boolean; cooldownLabel?: string; onBuy: () => void; onBuyBulk?: () => void }) {
   const config = tierConfig[pack.tier];
   const accent = pack.color ?? config.color;
@@ -1830,7 +1883,7 @@ function PackProduct({ pack, price, discountPct, disabled, bulkDisabled, cooldow
   const symbol = isDaily ? <Gift size={36} /> : pack.id === 'awp' ? <Crosshair size={36} /> : pack.id === 'rifle' ? <Swords size={36} /> : pack.id === 'igl' ? <Users size={36} /> : pack.id === 'asia' ? <Globe size={36} /> : pack.id === 'silver' ? <Shield size={36} /> : pack.tier === 'Bronze' ? <Medal size={36} /> : pack.tier === 'Gold' ? <Trophy size={36} /> : <Crown size={36} />;
   return <div className={`pack-product ${pack.badge === 'MOST POPULAR' ? 'featured' : ''} ${isDaily ? 'daily-pack' : ''}`} style={{ '--pack-color': accent, '--pack-soft': soft } as React.CSSProperties}>
     {pack.badge && <div className="featured-label">{pack.badge}</div>}
-    <div className="pack-art"><div className="pack-glow" /><div className="pack-symbol">{symbol}</div><strong>{pack.art}</strong><span>PLAYER PACK · {pack.count} CARDS</span></div>
+    <div className="pack-art"><div className="pack-glow" /><PackFoil pack={pack} icon={symbol} /><strong>{pack.art}</strong><span>PLAYER PACK · {pack.count} CARDS</span></div>
     <div className="pack-copy">
       <div className="pack-title-row"><h3>{pack.name}</h3><span>{pack.tagline}</span></div>
       <p>{pack.description}</p>
@@ -2032,11 +2085,21 @@ function MarketPage({ userId, coins, owned, squad, onList, onBuy, onCancel, onCl
         const ovr = Math.min(99, Math.round(Number(card.ovr) || 0));
         const affordable = coins >= listing.price;
         const botListing = listing.sellerId.startsWith('bot:');
-        return <div className="market-card" key={listing.id} role="button" tabIndex={0} onClick={() => setInspect(toInspectCard(listing.card))} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setInspect(toInspectCard(listing.card)); } }}>
-          <div className="market-card-top"><span className="team-emblem">{clubMonogram(typeof card.team === 'string' ? card.team : listing.sellerClub)}</span><div><strong>{name}</strong><small>{String(card.tier ?? 'Gold')} · {card.role === 'Lurker' ? 'Support' : String(card.role ?? 'Rifler')} · OVR {ovr}{Number(card.level) > 1 ? ` · Lvl ${Number(card.level)}` : ''}</small></div></div>
-          <div className="market-seller"><span>SELLER</span><strong>{listing.sellerClub}{botListing && <em className="market-ai-badge">AI BOT</em>}</strong></div>
+        const inspectCard = toInspectCard(listing.card);
+        const cardKey = listing.cardId || (typeof (card as { id?: string }).id === 'string' ? String((card as { id?: string }).id) : '');
+        const copies = owned.filter((item) => item.id === cardKey);
+        const ownedLabel = copies.length ? (copies.some((item) => inSquad.has(item.instanceId)) ? 'IN CLUB' : 'OWNED') : null;
+        const openCard = (): void => { const next = toInspectCard(listing.card); if (next) setInspect(next); };
+        return <div className={`market-card market-listing ${ownedLabel ? 'is-owned' : ''}`} key={listing.id} role="button" tabIndex={0} onClick={openCard} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openCard(); } }}>
+          <div className="market-card-visual">
+            {inspectCard ? <FutCard card={inspectCard} compact /> : <div className="market-card-placeholder">{name}</div>}
+            {ownedLabel && <span className={`market-owned-badge ${ownedLabel === 'IN CLUB' ? 'in-club' : ''}`}><BadgeCheck size={11} /> {ownedLabel}</span>}
+            {botListing && <span className="market-ai-badge floating">AI BOT</span>}
+          </div>
+          <div className="market-listing-line"><span>{String(card.tier ?? 'Gold')} · {card.role === 'Lurker' ? 'Support' : String(card.role ?? 'Rifler')}</span><b>OVR {ovr}</b></div>
+          <div className="market-seller"><span>SELLER</span><strong>{listing.sellerClub}</strong></div>
           <div className="market-price"><Coins size={15} /><strong>{listing.price.toLocaleString()}</strong><span>coins</span></div>
-          <button className="primary-button" disabled={!affordable || buying === listing.id} onClick={(event) => { event.stopPropagation(); void runBuy(listing); }}>{buying === listing.id ? 'Buying...' : affordable ? 'Buy now' : 'Not enough coins'}</button>
+          <button className="primary-button" disabled={!affordable || Boolean(ownedLabel) || buying === listing.id} onClick={(event) => { event.stopPropagation(); void runBuy(listing); }}>{ownedLabel ? 'Already in your club' : buying === listing.id ? 'Buying...' : affordable ? 'Buy now' : 'Not enough coins'}</button>
         </div>;
       })}</div> : <div className="empty-club"><Tag size={32} /><h3>{busy ? 'Loading listings...' : 'No cards on the market'}</h3><p>{query || roleFilter !== 'All' || rarityFilter !== 'All' ? 'No listing matches those filters.' : 'Be the first: list a surplus card from the Sell tab.'}</p></div>}
     </> : tab === 'sell' ? <>
@@ -2047,8 +2110,9 @@ function MarketPage({ userId, coins, owned, squad, onList, onBuy, onCancel, onCl
         <div className="confirm-actions"><button className="league-ghost" onClick={() => setSellTarget(null)}>Back</button><button className="primary-button" onClick={() => void submitListing()} disabled={!Number(price)}><Tag size={14} /> List on market</button></div>
       </div> : owned.length ? <div className="market-grid">{owned.map((card) => {
         const starting = inSquad.has(card.instanceId);
-        return <div className={`market-card ${starting ? 'in-squad' : ''}`} key={card.instanceId} role="button" tabIndex={0} onClick={() => setInspect(card)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setInspect(card); } }}>
-          <div className="market-card-top"><span className="team-emblem">{clubMonogram(card.team)}</span><div><strong>{card.name}</strong><small>{card.tier} · {card.role} · OVR {card.ovr}{card.level > 1 ? ` · Lvl ${card.level}` : ''}</small></div></div>
+        return <div className={`market-card market-listing ${starting ? 'in-squad' : ''}`} key={card.instanceId} role="button" tabIndex={0} onClick={() => setInspect(card)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setInspect(card); } }}>
+          <div className="market-card-visual"><FutCard card={card} compact />{starting && <span className="market-owned-badge in-club"><BadgeCheck size={11} /> IN CLUB</span>}</div>
+          <div className="market-listing-line"><span>{card.tier} · {roleLabel(card.role)}</span><b>OVR {card.ovr}</b></div>
           <div className="market-seller"><span>QUICK SELL VALUE</span><strong>{tierConfig[card.tier].sell.toLocaleString()}</strong></div>
           <button className="primary-button" disabled={starting} onClick={(event) => { event.stopPropagation(); setSellTarget(card); setPrice(String(Math.max(50, tierConfig[card.tier].sell * 3))); }}>{starting ? 'In your squad' : 'Choose price'}</button>
         </div>;
@@ -2078,21 +2142,64 @@ function PreMatchTactics({ tactic, onChange }: { tactic: Tactic; onChange: (tact
   </div>;
 }
 
-function LeagueStandingsMini({ teams, divisionName, zone, teamName, emblem, accent }: { teams: LeagueTeam[]; divisionName: string; zone: string; teamName: string; emblem?: EmblemId; accent?: string }) {
+const CREST_COLORS = ['#f97316', '#38bdf8', '#a78bfa', '#34d399', '#fb7185', '#fbbf24', '#22d3ee', '#e879f9', '#60a5fa', '#f59e0b', '#2dd4bf', '#c084fc'];
+
+/** Deterministic geometric crest so every AI/managed club has its own badge. */
+function ClubCrest({ seed, size = 22 }: { seed: string; size?: number }) {
+  let hash = 0;
+  for (let index = 0; index < seed.length; index += 1) hash = (hash * 31 + seed.charCodeAt(index)) >>> 0;
+  const color = CREST_COLORS[hash % CREST_COLORS.length];
+  const shape = hash % 4;
+  return <span className="club-crest" style={{ '--crest-color': color, width: size, height: size } as React.CSSProperties} aria-hidden="true">
+    <svg viewBox="0 0 32 32">
+      <path className="crest-shell" d="M16 2.5l11.5 4.4V17c0 6.6-4.9 10.9-11.5 13.4C9.4 27.9 4.5 23.6 4.5 17V6.9z" />
+      {shape === 0 && <path className="crest-mark" d="M16 8.5l6.5 3.8v5.4L16 21.5l-6.5-3.8v-5.4z" />}
+      {shape === 1 && <path className="crest-mark" d="M9.5 21l6.5-12 6.5 12h-4.2L16 15.6 13.7 21z" />}
+      {shape === 2 && <path className="crest-mark" d="M11 10.5h10l-2.2 4.4 2.2 4.4H11l2.2-4.4z" />}
+      {shape === 3 && <path className="crest-mark" d="M16 7l3 6.4 7 .8-5.2 4.7 1.5 6.9-6.3-3.6-6.3 3.6 1.5-6.9L6 14.2l7-.8z" />}
+    </svg>
+  </span>;
+}
+
+function LeagueStandings({ teams, division, divisionName, zone, teamName, emblem, accent, onTeam }: { teams: LeagueTeam[]; division: number; divisionName: string; zone: string; teamName: string; emblem?: EmblemId; accent?: string; onTeam: (team: LeagueTeam) => void }) {
+  const relegateFrom = 14;
   return <div className="standings-card">
-    <div className="standings-head"><div><div className="eyebrow orange">LEAGUE STANDINGS · 16 TEAMS</div><h3>{divisionName} · {zone}</h3></div><span>Rank · Team · W/L · Round Diff · Points</span></div>
-    <div className="league-table standings-table"><div className="league-table-head"><span>#</span><span>TEAM</span><span>W/L</span><span>RD</span><span>PTS</span></div>
-      {teams.map((team, index) => <div key={team.id} className={`league-row ${team.id === 'user' ? 'is-user' : 'is-bot'}`}>
-        <span className="league-rank">{index + 1}</span>
-        <span className="league-club">{team.id === 'user' ? <><TeamEmblem emblem={emblem} accent={accent} size={16} /><b>{clubLabel(teamName)}</b><i>YOU</i></> : <b>{team.name}</b>}</span>
-        <span>{team.wins}/{team.losses}</span>
-        <span>{team.roundDiff > 0 ? `+${team.roundDiff}` : team.roundDiff}</span>
-        <strong>{team.points}</strong>
-      </div>)}
+    <div className="standings-head"><div><div className="eyebrow orange">LEAGUE STANDINGS · 16 TEAMS</div><h3>{divisionName} · {zone}</h3></div><span>Click any club to scout its roster · FORM = last 5</span></div>
+    <div className="league-table standings-table">
+      <div className="league-table-head"><span>#</span><span>TEAM</span><span>FORM</span><span>W/L</span><span>RD</span><span>PTS</span></div>
+      {teams.map((team, index) => {
+        const rank = index + 1;
+        const promote = rank <= 3;
+        const relegate = division > 0 && rank >= relegateFrom;
+        const form = team.form ?? [];
+        return <button
+          type="button"
+          key={team.id}
+          className={`league-row league-row-button ${team.id === 'user' ? 'is-user' : 'is-bot'} ${promote ? 'promotion' : ''} ${relegate ? 'relegation' : ''}`}
+          onClick={() => onTeam(team)}
+          aria-label={`Scout ${team.id === 'user' ? clubLabel(teamName) : team.name}`}
+        >
+          <span className="league-rank">{rank}</span>
+          <span className="league-club">
+            {team.id === 'user' ? <TeamEmblem emblem={emblem} accent={accent} size={18} /> : <ClubCrest seed={team.id || team.name} size={22} />}
+            <b>{team.id === 'user' ? clubLabel(teamName) : team.name}</b>
+            {team.id === 'user' && <i>YOU</i>}
+            <small>{team.manager ? `${team.manager} · ` : ''}OVR {team.ovr}</small>
+          </span>
+          <span className="league-form">{form.length ? form.map((entry, entryIndex) => <i key={`${entry}-${entryIndex}`} className={entry === 'W' ? 'w' : 'l'}>{entry}</i>) : <em>—</em>}</span>
+          <span>{team.wins}/{team.losses}</span>
+          <span>{team.roundDiff > 0 ? `+${team.roundDiff}` : team.roundDiff}</span>
+          <strong>{team.points}</strong>
+        </button>;
+      })}
+    </div>
+    <div className="standings-legend">
+      <span className="promotion">1–3 PROMOTE</span>
+      {division > 0 ? <span className="relegation">14–16 RELEGATE</span> : <span className="floor">DIVISION 1 · NO RELEGATION</span>}
+      <span>LAST 5 · W / L</span>
     </div>
   </div>;
 }
-
 function ArenaPage({ userId, teamRating, chemistry, perks, league, setLeague, onWin, onMvpBonus, squad, quests, onClaimQuest, scrimWins, scrimsPlayed, onScrimmage, onCareerMatch, recentForm, ecosystem, teamName, emblem, accent, liveSlotRef }: { teamRating: number; chemistry: number; perks: Perk[]; teamName: string; emblem?: EmblemId; accent?: string; league: LeagueState; setLeague: (next: LeagueState) => void; onWin: (reward: number, xp: number, message?: string) => void; onMvpBonus: (amount: number) => void; squad: Duelist[]; quests: QuestState; onClaimQuest: (id: QuestId) => void; scrimWins: number; onScrimmage: (won: boolean, asScrim?: boolean) => void; onCareerMatch: (won: boolean, map: RadarMapId, score: { us: number; them: number }, opponent: string) => void; recentForm: MatchForm[]; scrimsPlayed: number; ecosystem: EcoTeam[]; userId: string | null; liveSlotRef: { current: number | null } }) {
   const [mode, setMode] = useState<'quick' | 'league'>('league');
   const [opponentId, setOpponentId] = useState('tier2');
@@ -2136,6 +2243,8 @@ function ArenaPage({ userId, teamRating, chemistry, perks, league, setLeague, on
   useEffect(() => () => { if (highlightTimerRef.current) window.clearTimeout(highlightTimerRef.current); }, []);
 
   const economy = economyForRound(round);
+  // MR12 halftime: rounds 1-12 are played on CT, 13+ on T.
+  const ourSide: 'ct' | 't' = round > 12 ? 't' : 'ct';
   const quickOpponents = [{ id: 'tier2', name: 'Tier 2 Mix', ovr: 72, reward: 500, color: 'bronze', ecoName: 'MIBR' }, { id: 'g2faze', name: 'G2 / FaZe', ovr: 82, reward: 1000, color: 'gold', ecoName: 'G2 Esports' }, { id: 'vitality', name: 'Vitality / Spirit', ovr: 88, reward: 2000, color: 'star', ecoName: 'Team Vitality' }];
   const division = divisions[league.division];
   const pairs = leagueSlotPairs(league);
@@ -2145,6 +2254,14 @@ function ArenaPage({ userId, teamRating, chemistry, perks, league, setLeague, on
   const leagueOpponent = leagueOpponentTeam ? { id: leagueOpponentTeam.id, name: leagueOpponentTeam.name, ovr: leagueOpponentTeam.ovr, reward: LEAGUE_WIN_COINS, color: 'gold' } : quickOpponent;
   const opponent = leagueLive ? leagueOpponent : scrimLive && scrimOpponent ? scrimOpponent : quickOpponent;
   const sortedTeams = sortLeague(league.teams);
+  /** Standings rows open a scouting report: real managers use their cards, AI clubs their pro roster. */
+  const openStandingsTeam = (team: LeagueTeam): void => {
+    if (team.id === 'user') return;
+    if (team.squad && team.squad.length > 0) { setManagerTeam(team); return; }
+    const eco = ecoTeamById(ecosystem, ecoIdOf(team));
+    if (eco) setScoutTeam(eco);
+    else setManagerTeam(team);
+  };
   const ourRank = Math.max(1, sortedTeams.findIndex((team) => team.id === 'user') + 1);
   const atTopDivision = league.division >= divisions.length - 1;
   const opponentTeam = leagueLive ? leagueOpponentTeam : scrimLive && scrimOpponent ? league.teams.find((team) => team.id === scrimOpponent.id) : undefined;
@@ -2187,6 +2304,8 @@ function ArenaPage({ userId, teamRating, chemistry, perks, league, setLeague, on
     setRadarMap(pickRadarMap());
     settledRef.current = false;
     setSpeed(1); setLive(true); setPaused(false); setResult(null); setResultNote(''); setScoreboard(null); setRound(1);
+    matchRef.current = { score: { us: 0, them: 0 }, round: 1 };
+    setRoundLog([]);
     setScore({ us: 0, them: 0 }); setAlive({ us: 5, them: 5 });
     const opening = economyForRound(1);
     setFeed([{ text: kind === 'league' ? `R1 [${opening.ours}] ${tactic} · ${opening.ours} vs ${opening.theirs} · LIVE league broadcast.` : `R1 [${opening.ours}] ${tactic} · Pistol round begins. Both teams purchase.` }]);
@@ -2242,15 +2361,30 @@ function ArenaPage({ userId, teamRating, chemistry, perks, league, setLeague, on
     if (won) onWin(opponent.reward, 100 + opponent.reward / 10);
   };
 
-  const playRound = useCallback((): void => {
-    if (!live || paused || result) return;
-    const roundEconomy = economyForRound(round);
+  // MR12: the live match runs to 13 rounds. The refs keep the score/round
+  // authoritative across renders so the 1.5s tick can never replay a round.
+  const matchRef = useRef<{ score: { us: number; them: number }; round: number }>({ score: { us: 0, them: 0 }, round: 1 });
+  // finish() depends on the whole league state, so hold it in a ref: the round
+  // timer must not be rebuilt by the 1s arena clock re-render.
+  const finishRef = useRef(finish);
+  finishRef.current = finish;
+  const [roundLog, setRoundLog] = useState<Array<{ round: number; usWon: boolean; us: number; them: number }>>([]);
+
+  const simForRound = useCallback((roundNumber: number, current: { us: number; them: number }) => {
+    const roundEconomy = economyForRound(roundNumber);
     const antiEco = tactic === 'Defensive / Anti-Eco' && roundEconomy.theirs === 'Eco' ? 2 : 0;
     const ourBuy = economyPower(roundEconomy.ours) + antiEco;
     const theirBuy = economyPower(roundEconomy.theirs);
     const roundSquad = ourBuy === 0 ? squad : squad.map((player) => ({ ...player, ovr: withEconomy(player.ovr, ourBuy), aim: withEconomy(player.aim, ourBuy), rfl: withEconomy(player.rfl, ourBuy), sns: withEconomy(player.sns, ourBuy), clt: withEconomy(player.clt, ourBuy) }));
-    const sim = simulateRound({ squad: roundSquad, teamRating: teamRating > 0 ? withEconomy(teamRating, ourBuy) : teamRating, chemistry, perks, opponentName: opponent.name, opponentOvr: withEconomy(opponent.ovr, theirBuy), round });
-    const nextScore = { us: score.us + (sim.usWon ? 1 : 0), them: score.them + (sim.usWon ? 0 : 1) };
+    const sim = simulateRound({ squad: roundSquad, teamRating: teamRating > 0 ? withEconomy(teamRating, ourBuy) : teamRating, chemistry, perks, opponentName: opponent.name, opponentOvr: withEconomy(opponent.ovr, theirBuy), round: roundNumber });
+    return { sim, roundEconomy, nextScore: { us: current.us + (sim.usWon ? 1 : 0), them: current.them + (sim.usWon ? 0 : 1) } };
+  }, [squad, teamRating, chemistry, perks, opponent.name, opponent.ovr, tactic]);
+
+  const playRound = useCallback((): void => {
+    if (!live || paused || result) return;
+    const roundNumber = matchRef.current.round;
+    const { sim, roundEconomy, nextScore } = simForRound(roundNumber, matchRef.current.score);
+    matchRef.current = { score: nextScore, round: roundNumber + 1 };
     const ecoUpset = (roundEconomy.ours === 'Eco' && roundEconomy.theirs === 'Full Buy' && sim.usWon)
       || (roundEconomy.theirs === 'Eco' && roundEconomy.ours === 'Full Buy' && !sim.usWon);
     if (ecoUpset) {
@@ -2265,13 +2399,42 @@ function ArenaPage({ userId, teamRating, chemistry, perks, league, setLeague, on
     if (clutchMatch && Number(clutchMatch[1]) >= 2) {
       showHighlight({ kind: 'clutch', title: `1v${clutchMatch[1]} CLUTCH!`, note: `${sim.mvp} takes the impossible round.` });
     }
-    const summary: FeedLine = { tag: 'ROUND', text: `R${round} [${roundEconomy.ours}] ${sim.usWon ? 'ROUND WON' : 'ROUND LOST'} · survivors ${sim.usAlive}—${sim.themAlive} · ${nextScore.us}:${nextScore.them} · MVP ${sim.mvp}` };
+    const summary: FeedLine = { tag: 'ROUND', text: `R${roundNumber} [${roundEconomy.ours}] ${sim.usWon ? 'ROUND WON' : 'ROUND LOST'} · survivors ${sim.usAlive}—${sim.themAlive} · ${nextScore.us}:${nextScore.them} · MVP ${sim.mvp}` };
+    const halftime: FeedLine | null = roundNumber === 12 && nextScore.us < 13 && nextScore.them < 13
+      ? { tag: 'ROUND', text: `R12 HALF-TIME · ${nextScore.us}:${nextScore.them} · sides swap — you take the T side.` }
+      : null;
     setAlive({ us: sim.usAlive, them: sim.themAlive });
-    setFeed((current) => [summary, ...[...sim.lines].reverse(), ...current].slice(0, 14));
-    setScore(nextScore); setRound((current) => current + 1);
-    if (nextScore.us >= 13 || nextScore.them >= 13) finish(nextScore.us >= 13, nextScore);
-  }, [live, paused, result, perks, squad, teamRating, chemistry, opponent.name, opponent.ovr, round, score, leagueLive, scrimLive, scrimWins, league, tactic, showHighlight, radarMap, onCareerMatch]);
-  useEffect(() => { if (!live || paused || result) return; const timer = window.setInterval(playRound, speed === 2 && !leagueLive ? 750 : 1500); return () => window.clearInterval(timer); }, [live, paused, result, speed, leagueLive, playRound]);
+    setFeed((current) => [summary, ...(halftime ? [halftime] : []), ...[...sim.lines].reverse(), ...current].slice(0, 14));
+    setScore(nextScore); setRound(roundNumber + 1);
+    setRoundLog((current) => [...current, { round: roundNumber, usWon: sim.usWon, us: nextScore.us, them: nextScore.them }]);
+    if (nextScore.us >= 13 || nextScore.them >= 13) finishRef.current(nextScore.us >= 13, nextScore);
+  }, [live, paused, result, simForRound, opponent.name, showHighlight]);
+
+  /** Fast-forward the rest of the MR12 map without skipping the result calculation. */
+  const skipToResult = useCallback((): void => {
+    if (!live || result) return;
+    let state = { score: { ...matchRef.current.score }, round: matchRef.current.round };
+    const summaries: FeedLine[] = [];
+    const log: Array<{ round: number; usWon: boolean; us: number; them: number }> = [];
+    let alive = { us: 5, them: 5 };
+    let guard = 60;
+    while (state.score.us < 13 && state.score.them < 13 && guard-- > 0) {
+      const { sim, roundEconomy, nextScore } = simForRound(state.round, state.score);
+      summaries.push({ tag: 'ROUND', text: `R${state.round} [${roundEconomy.ours}] ${sim.usWon ? 'ROUND WON' : 'ROUND LOST'} · ${nextScore.us}:${nextScore.them} · MVP ${sim.mvp}` });
+      log.push({ round: state.round, usWon: sim.usWon, us: nextScore.us, them: nextScore.them });
+      alive = { us: sim.usAlive, them: sim.themAlive };
+      if (state.round === 12 && nextScore.us < 13 && nextScore.them < 13) summaries.push({ tag: 'ROUND', text: `R12 HALF-TIME · ${nextScore.us}:${nextScore.them} · sides swap — you take the T side.` });
+      state = { score: nextScore, round: state.round + 1 };
+    }
+    matchRef.current = state;
+    setScore(state.score); setRound(state.round); setAlive(alive);
+    setRoundLog((current) => [...current, ...log]);
+    setFeed((current) => [...summaries.slice(-8).reverse(), ...current].slice(0, 14));
+    playSound('click');
+    finishRef.current(state.score.us > state.score.them, state.score);
+  }, [live, result, simForRound]);
+
+  useEffect(() => { if (!live || paused || result) return; const timer = window.setInterval(playRound, speed === 2 ? 650 : 1400); return () => window.clearInterval(timer); }, [live, paused, result, speed, playRound]);
 
   const findChallengers = (term: string): void => {
     if (!userId) { setChallengeResults([]); return; }
@@ -2323,10 +2486,10 @@ function ArenaPage({ userId, teamRating, chemistry, perks, league, setLeague, on
 
   const recapModal = dayResult ? <MatchRecapModal info={{ matches: [], coins: dayResult.coins, day: dayResult }} onClose={() => setDayResult(null)} /> : null;
   const roadmap = showRoadmap ? <LeagueRoadmap current={league.division} onClose={() => setShowRoadmap(false)} onOpen={(division) => { setShowRoadmap(false); setBrowseDivision(division); }} /> : null;
-  if (live || result) return <><ArenaLive teamName={teamName} emblem={emblem} accent={accent} lineup={squad} opponentRoster={opponentRoster} economy={economy} tactic={tactic} radarMap={radarMap} highlight={highlight} broadcast={leagueLive} resultNote={resultNote} opponent={opponent} score={score} round={round} feed={feed} alive={alive} paused={paused} speed={speed} setSpeed={setSpeed} onPause={() => setPaused((current) => !current)} onRound={playRound} onSkip={() => finish(true, score.us >= score.them || score.them >= 13 ? score : { us: Math.max(score.us, 13), them: score.them })} result={result} onExit={() => { setLive(false); setResult(null); setScoreboard(null); setLeagueLive(false); setScrimLive(false); liveSlotRef.current = null; slotStartRef.current = null; }} />{scoreboardModal}{recapModal}</>;
+  if (live || result) return <><ArenaLive teamName={teamName} emblem={emblem} accent={accent} lineup={squad} opponentRoster={opponentRoster} economy={economy} tactic={tactic} radarMap={radarMap} highlight={highlight} broadcast={leagueLive} resultNote={resultNote} opponent={opponent} score={score} round={round} roundLog={roundLog} ourSide={ourSide} feed={feed} alive={alive} paused={paused} speed={speed} setSpeed={setSpeed} onPause={() => setPaused((current) => !current)} onRound={playRound} onSkip={skipToResult} result={result} onExit={() => { setLive(false); setResult(null); setScoreboard(null); setLeagueLive(false); setScrimLive(false); liveSlotRef.current = null; slotStartRef.current = null; }} />{scoreboardModal}{recapModal}</>;
   return <><PageTitle eyebrow="COMPETITIVE PLAY" title="Play Arena" subtitle="League matches run automatically every hour at :30 — play friendlies and daily quests while you wait." /><div className="arena-mode-bar"><div className="club-tabs arena-mode-toggle"><button className={mode === 'quick' ? 'active' : ''} onClick={() => setMode('quick')}>Quick Match</button><button className={mode === 'league' ? 'active' : ''} onClick={() => setMode('league')}>League Season <span>16 Teams</span></button></div><span className="arena-mode-note">{mode === 'quick' ? 'Pick any opponent and play a single match.' : `DIV ${league.division + 1} • ${zoneLabel(zoneIndex).toUpperCase()} · ${division.name} · ${zoneCount > 1 ? `${zoneCount} ZONES · ` : ''}Season ${league.season}`}</span></div>
     <PreMatchTactics tactic={tactic} onChange={setTactic} />
-    {mode === 'quick' && <LeagueStandingsMini teams={sortedTeams} divisionName={division.name} zone={zoneLabel(zoneIndex)} teamName={teamName} emblem={emblem} accent={accent} />}
+    <LeagueStandings teams={sortedTeams} division={league.division} divisionName={division.name} zone={zoneLabel(zoneIndex)} teamName={teamName} emblem={emblem} accent={accent} onTeam={openStandingsTeam} />
     {questPanel}
     {mode === 'quick' ? <div className="arena-lobby"><div className="arena-lobby-art"><div className="arena-radar"><div className="radar-ring one" /><div className="radar-ring two" /><div className="radar-cross" /><div className="arena-dot one" /><div className="arena-dot two" /><div className="arena-dot three" /></div><div className="arena-lobby-emblem"><Swords size={34} /></div></div><div className="arena-lobby-copy"><div className="eyebrow orange">ARENA MATCHMAKING</div><h2>Choose your opponent.</h2><p>Your active five, chemistry, and manager perks influence every round. Win the BO1 to collect the listed coin reward.</p><div className="arena-stat-line"><span><small>TEAM OVR</small><strong>{teamRating || '--'}</strong></span><span><small>CHEMISTRY</small><strong>{chemistry}</strong></span><span><small>XP ON WIN</small><strong>+{100 + quickOpponent.reward / 10}</strong></span></div><div className="opponent-list">{quickOpponents.map((item) => <button key={item.id} className={`opponent-option ${opponentId === item.id ? 'selected' : ''}`} onClick={() => setOpponentId(item.id)}><span className={`opponent-tier ${item.color}`}>{item.ovr}</span><span><strong>{item.name}</strong><small>{item.ovr} OVR AI opponent</small></span><b><Coins size={13} /> +{item.reward.toLocaleString()}</b></button>)}</div><button className="primary-button arena-start" onClick={() => beginMatch('quick')}><Play size={16} fill="currentColor" /> START MATCH</button><button className="league-ghost arena-scrim" disabled={scrimLimitReached} onClick={() => beginMatch('scrim')}><Swords size={15} /> {scrimLimitReached ? <span className="scrim-limit-label">{scrimLimitLabel}</span> : <>Play Scrimmage (Friendly) <span>{scrimsToday}/{SCRIM_DAILY_LIMIT} Daily Scrims</span></>}</button><button className="league-ghost arena-scrim" onClick={openChallenge}><Users size={15} /> Challenge Friend <span>Real club · Bo3</span></button></div></div>
     : <div className="league-shell"><div className="league-hero"><div className="league-rank-badge"><Crown size={20} /><strong>{league.division + 1}</strong><span>DIVISION</span></div><div className="league-hero-copy"><div className="eyebrow orange">DIVISION {league.division + 1} OF 15 · {zoneLabel(zoneIndex).toUpperCase()} · {seasonLabel(league.season).toUpperCase()} · ENDS IN {seasonCountdown(Date.now()).toUpperCase()}</div><div className="zone-badges"><span className="zone-badge">DIV {league.division + 1} • {zoneLabel(zoneIndex).toUpperCase()}</span>{zoneCount > 1 && <span className="zone-badge soft">{zoneCount} ZONES</span>}<span className="zone-badge soft">{humanCount} REAL MANAGERS · {ZONE_SIZE - humanCount} BOTS</span></div><h2>{division.name}</h2><p>16-team room · 24 hourly matches per day · Opponent OVR {division.ovrMin}–{division.ovrMax}{league.division === divisions.length - 1 ? ' · Top 16 World Elite' : ''}</p><div className="league-zone-legend"><span className="promotion">Promote 1–{promoteCount} after all {SLOTS_PER_DAY} matches</span>{league.division > 0 && <span className="relegation">Relegate 14–16 when the table closes</span>}<span><Coins size={12} /> +{LEAGUE_WIN_COINS} win / +{LEAGUE_LOSS_COINS} loss</span></div></div><div className="league-progress"><span>TODAY</span><strong>{Math.min(slot, SLOTS_PER_DAY)} / {SLOTS_PER_DAY}</strong><div className="league-progress-bar"><i style={{ width: `${Math.round((Math.min(slot, SLOTS_PER_DAY) / SLOTS_PER_DAY) * 100)}%` }} /></div><small>{leagueOpponentTeam ? `Next: ${leagueOpponentTeam.name} · ${leagueOpponentTeam.ovr} OVR` : 'Next opponent loading'}</small></div></div>
@@ -2509,11 +2672,11 @@ function DivisionBrowser({ division, ecosystem, liveTeams, onDivision, onTeam, o
       <div className="league-table-head"><span>#</span><span>CLUB</span><span>P</span><span>W</span><span>L</span><span>RD</span><span>PTS</span></div>
       {liveTeams ? liveTeams.map((team, index) => { const rank = index + 1; const zone = rank <= 3 ? 'promotion' : division > 0 && rank >= 14 ? 'relegation' : ''; const eco = ecoTeamById(ecosystem, ecoIdOf(team)); return <div key={team.id} className={`league-row ${zone} ${team.id === 'user' ? 'is-user' : ''}`}>
         <span className="league-rank">{rank}</span>
-        <span className="league-club">{eco ? <button className="team-link" onClick={() => onTeam(eco)}>{team.id === 'user' ? clubLabel(teamName) : team.name}</button> : <b>{team.id === 'user' ? clubLabel(teamName) : team.name}</b>}<em className={`seat-badge ${teamKind(team) === 'bot' ? 'bot' : 'player'}`}>{teamKind(team) === 'bot' ? 'BOT' : 'PLAYER'}</em>{team.id === 'user' && <i>YOU</i>}<small>{team.manager ? `${team.manager} · ` : ''}OVR {team.ovr}</small></span>
+        <span className="league-club">{team.id !== 'user' && <ClubCrest seed={team.id || team.name} size={18} />}{eco ? <button className="team-link" onClick={() => onTeam(eco)}>{team.id === 'user' ? clubLabel(teamName) : team.name}</button> : <b>{team.id === 'user' ? clubLabel(teamName) : team.name}</b>}<em className={`seat-badge ${teamKind(team) === 'bot' ? 'bot' : 'player'}`}>{teamKind(team) === 'bot' ? 'BOT' : 'PLAYER'}</em>{team.id === 'user' && <i>YOU</i>}<small>{team.manager ? `${team.manager} · ` : ''}OVR {team.ovr}</small></span>
         <span>{team.played}</span><span>{team.wins}</span><span>{team.losses}</span><span>{team.roundDiff > 0 ? `+${team.roundDiff}` : team.roundDiff}</span><strong>{team.points}</strong>
       </div>; }) : ecoTable.map((team, index) => { const rank = index + 1; const zone = rank <= 3 ? 'promotion' : division > 0 && rank >= 14 ? 'relegation' : ''; return <div key={team.id} className={`league-row ${zone}`}>
         <span className="league-rank">{rank}</span>
-        <span className="league-club"><button className="team-link" onClick={() => onTeam(team)}>{team.name}</button><small>OVR {team.ovr} · FORM {team.form.length ? team.form.join('-') : '—'}</small></span>
+        <span className="league-club"><ClubCrest seed={team.id || team.name} size={18} /><button className="team-link" onClick={() => onTeam(team)}>{team.name}</button><small>OVR {team.ovr} · FORM {team.form.length ? team.form.join('-') : '—'}</small></span>
         <span>{team.played}</span><span>{team.wins}</span><span>{team.losses}</span><span>{team.roundDiff > 0 ? `+${team.roundDiff}` : team.roundDiff}</span><strong>{team.points}</strong>
       </div>; })}
       {!clubs.length && <div className="division-empty">No clubs registered in this division yet.</div>}
@@ -2541,7 +2704,7 @@ function ManagerRosterModal({ team, division, zone, onClose }: { team: LeagueTea
       <strong>{card.name}</strong><small>{card.role}{card.team ? ` · ${card.team}` : ''}</small>
       <div className="roster-stats"><span><small>OVR</small><b>{power}</b></span><span><small>BASE</small><b>{card.ovr}</b></span><span><small>LEVEL</small><b>{card.level}</b></span></div>
     </div>; }) : <div className="division-empty">This manager has not locked a 5-card squad yet.</div>}</div>
-    <div className="division-note"><span className="promotion">Promote 1–{promotionSlots(division, 1)} after {SLOTS_PER_DAY} matches</span><span className="relegation">Relegate 14–16 when the table closes</span><span>Team OVR = average of the 5 active cards</span></div>
+    <div className="division-note"><span className="promotion">Promote 1–{promotionSlots(division, 1)} after {SLOTS_PER_DAY} matches</span>{division > 0 && <span className="relegation">Relegate 14–16 when the table closes</span>}{division === 0 && <span>Division 1 is the floor — no relegation</span>}<span>Team OVR = average of the 5 active cards</span></div>
   </div></div>;
 }
 
@@ -2584,8 +2747,24 @@ function MatchRecapModal({ info, onClose }: { info: { matches: LeagueMatchLog[];
   </div></div>;
 }
 
-function ArenaLive({ opponent, score, round, feed, alive, paused, speed, setSpeed, onPause, onRound, onSkip, result, onExit, broadcast, resultNote, teamName, emblem, accent, lineup, opponentRoster, economy, tactic, radarMap, highlight }: { opponent: { name: string; ovr: number; reward: number }; teamName: string; emblem?: EmblemId; accent?: string; lineup: Duelist[]; opponentRoster: RadarDuelist[]; economy: RoundEconomy; tactic: Tactic; radarMap: RadarMapId; highlight: MatchHighlight; score: { us: number; them: number }; round: number; feed: FeedLine[]; alive: { us: number; them: number }; paused: boolean; speed: number; setSpeed: (speed: number) => void; onPause: () => void; onRound: () => void; onSkip: () => void; result: 'win' | 'loss' | null; onExit: () => void; broadcast?: boolean; resultNote?: string }) {
-  return <div className="arena-live-page">{highlight && <div className={`match-highlight ${highlight.kind}`}><span className="match-highlight-icon">{highlight.kind === 'thrifty' ? <Coins size={20} /> : <Flame size={20} />}</span><div><strong>{highlight.title}</strong><small>{highlight.note}</small></div></div>}<div className="arena-live-head"><div><div className="eyebrow orange">{broadcast ? <><span className="broadcast-dot" /> LIVE LEAGUE BROADCAST</> : 'LIVE ARENA'} · ROUND {Math.min(round, 24)}</div><div className="live-score"><strong className="live-club-name"><TeamEmblem emblem={emblem} accent={accent} size={20} /> {clubLabel(teamName)}</strong><b>{score.us}</b><span>:</span><b className="enemy-score">{score.them}</b><strong>{opponent.name.toUpperCase()}</strong></div></div><div className="arena-live-meta"><span><small>ALIVE</small><b>{alive.us} — {alive.them}</b></span><span><small>ECONOMY</small><b>{economy.ours} / {economy.theirs}</b></span><span><small>AI OVR</small><b>{opponent.ovr}</b></span></div></div><div className="arena-live-grid"><div><TacticalRadar mapId={radarMap} ours={lineup} theirs={opponentRoster} opponentName={opponent.name} round={round} paused={paused} speed={speed} broadcast={broadcast} economy={economy} tactic={tactic} /><div className="arena-controls"><button onClick={onPause} className="control-button">{paused ? <Play size={14} fill="currentColor" /> : <span>Ⅱ</span>} {paused ? 'Play' : 'Pause'}</button>{broadcast ? <span className="broadcast-controls"><span className="broadcast-dot" /> LIVE · 1x speed · no skip</span> : <><button onClick={() => setSpeed(speed === 2 ? 1 : 2)} className={`control-button ${speed === 2 ? 'selected' : ''}`}><Zap size={14} /> 2x Speed</button><button onClick={onRound} className="control-button">Skip Round <ChevronRight size={14} /></button><button onClick={onSkip} className="control-button accent">Skip to Result <Trophy size={14} /></button></>}</div></div><div className="arena-feed"><div className="feed-title"><span>ROUND FEED</span><i>LIVE</i></div>{feed.map((line, index) => <div className={`arena-feed-line ${index === 0 ? 'latest' : ''}`} key={`${line.text}-${index}`}><span />{line.tag && <b className={`feed-tag ${line.tag.toLowerCase()}`}>{line.tag}</b>}{line.text}</div>)}</div></div>{result && <div className="arena-result"><div className={result === 'win' ? 'result-icon win' : 'result-icon loss'}>{result === 'win' ? <Trophy size={28} /> : <Shield size={28} />}</div><div className="eyebrow">MATCH COMPLETE</div><h2>{result === 'win' ? 'VICTORY' : 'DEFEAT'}</h2><p>{resultNote || (result === 'win' ? `You beat ${opponent.name} and earned ${opponent.reward.toLocaleString()} coins.` : `${opponent.name} takes the server this time. Rebuild and try again.`)}</p><button className="primary-button" onClick={onExit}>Return to Arena <ChevronRight size={15} /></button></div>}</div>;
+function ArenaLive({ opponent, score, round, roundLog, ourSide, feed, alive, paused, speed, setSpeed, onPause, onRound, onSkip, result, onExit, broadcast, resultNote, teamName, emblem, accent, lineup, opponentRoster, economy, tactic, radarMap, highlight }: { opponent: { name: string; ovr: number; reward: number }; teamName: string; emblem?: EmblemId; accent?: string; lineup: Duelist[]; opponentRoster: RadarDuelist[]; economy: RoundEconomy; tactic: Tactic; radarMap: RadarMapId; highlight: MatchHighlight; score: { us: number; them: number }; round: number; roundLog: Array<{ round: number; usWon: boolean; us: number; them: number }>; ourSide: 'ct' | 't'; feed: FeedLine[]; alive: { us: number; them: number }; paused: boolean; speed: number; setSpeed: (speed: number) => void; onPause: () => void; onRound: () => void; onSkip: () => void; result: 'win' | 'loss' | null; onExit: () => void; broadcast?: boolean; resultNote?: string }) {
+  const matchPoint = score.us >= 12 || score.them >= 12;
+  return <div className="arena-live-page">{highlight && <div className={`match-highlight ${highlight.kind}`}><span className="match-highlight-icon">{highlight.kind === 'thrifty' ? <Coins size={20} /> : <Flame size={20} />}</span><div><strong>{highlight.title}</strong><small>{highlight.note}</small></div></div>}
+    <div className="arena-live-head"><div><div className="eyebrow orange">{broadcast ? <><span className="broadcast-dot" /> LIVE LEAGUE BROADCAST</> : 'LIVE ARENA'} · MR12 · ROUND {Math.min(round, 24)} / 24 · {ourSide.toUpperCase()} SIDE</div><div className="live-score"><strong className="live-club-name"><TeamEmblem emblem={emblem} accent={accent} size={20} /> {clubLabel(teamName)}</strong><b>{score.us}</b><span>:</span><b className="enemy-score">{score.them}</b><strong>{opponent.name.toUpperCase()}</strong></div></div><div className="arena-live-meta"><span><small>ALIVE</small><b>{alive.us} — {alive.them}</b></span><span><small>ECONOMY</small><b>{economy.ours} / {economy.theirs}</b></span><span><small>AI OVR</small><b>{opponent.ovr}</b></span><span><small>FIRST TO</small><b>13</b></span></div></div>
+    <div className={`mr12-track ${matchPoint ? 'match-point' : ''}`}>
+      <div className="mr12-track-head"><span>ROUND BY ROUND · FIRST TO 13</span><b>{score.us} : {score.them}</b></div>
+      <div className="mr12-cells">
+        {Array.from({ length: 24 }, (_, index) => {
+          const number = index + 1;
+          const entry = roundLog.find((item) => item.round === number);
+          const live = !entry && !result && number === round;
+          const pending = !entry && !live;
+          return <span key={number} className={`mr12-cell ${entry ? (entry.usWon ? 'win' : 'loss') : pending ? 'pending' : 'live'} ${number === 12 ? 'half-end' : ''}`} title={entry ? `Round ${number} · ${entry.usWon ? 'WON' : 'LOST'} · ${entry.us}:${entry.them}` : `Round ${number}`}>{entry ? (entry.usWon ? 'W' : 'L') : number}</span>;
+        })}
+      </div>
+      <div className="mr12-track-foot"><span>CT HALF · R1–12</span><span>HALF-TIME SIDE SWAP</span><span>T HALF · R13–24</span></div>
+    </div>
+    <div className="arena-live-grid"><div><TacticalRadar mapId={radarMap} ours={lineup} theirs={opponentRoster} opponentName={opponent.name} round={round} paused={paused} speed={speed} broadcast={broadcast} economy={economy} tactic={tactic} swapSides={ourSide === 't'} /><div className="arena-controls"><button onClick={onPause} className="control-button">{paused ? <Play size={14} fill="currentColor" /> : <span>Ⅱ</span>} {paused ? 'Play' : 'Pause'}</button>{broadcast && <span className="broadcast-controls"><span className="broadcast-dot" /> LIVE · 1x speed</span>}<button onClick={() => setSpeed(speed === 2 ? 1 : 2)} className={`control-button ${speed === 2 ? 'selected' : ''}`}><Zap size={14} /> 2x Speed</button><button onClick={onRound} className="control-button">Skip Round <ChevronRight size={14} /></button><button onClick={onSkip} className="control-button accent">Skip to Result <Trophy size={14} /></button></div></div><div className="arena-feed"><div className="feed-title"><span>ROUND FEED</span><i>LIVE</i></div>{feed.map((line, index) => <div className={`arena-feed-line ${index === 0 ? 'latest' : ''}`} key={`${line.text}-${index}`}><span />{line.tag && <b className={`feed-tag ${line.tag.toLowerCase()}`}>{line.tag}</b>}{line.text}</div>)}</div></div>{result && <div className="arena-result"><div className={result === 'win' ? 'result-icon win' : 'result-icon loss'}>{result === 'win' ? <Trophy size={28} /> : <Shield size={28} />}</div><div className="eyebrow">MATCH COMPLETE · MR12</div><h2>{result === 'win' ? 'VICTORY' : 'DEFEAT'}</h2><p>{resultNote || (result === 'win' ? `You beat ${opponent.name} ${score.us}–${score.them} and earned ${opponent.reward.toLocaleString()} coins.` : `${opponent.name} takes the map ${score.them}–${score.us}. Rebuild and try again.`)}</p><button className="primary-button" onClick={onExit}>Return to Arena <ChevronRight size={15} /></button></div>}</div>;
 }
 
 function ProfilePage({ profile, setProfile, managerXp, trophies, career }: { profile: Profile; setProfile: (profile: Profile) => void; managerXp: number; trophies: LeagueTrophy[]; career: CareerStats }) {
