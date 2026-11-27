@@ -1,4 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
+import { Volume2, VolumeX } from 'lucide-react';
+import { isSoundMuted, setSoundMuted, subscribeSoundMuted } from '../utils/sound';
+import {
+  playRadarC4Beep,
+  playRadarCrackle,
+  playRadarDefuse,
+  playRadarDetonation,
+  playRadarFire,
+  playRadarGunfire,
+  playRadarSmoke,
+} from '../utils/radarSound';
 
 export type RadarDuelist = {
   name: string;
@@ -784,6 +795,72 @@ export function TacticalRadar({ mapId, ours, theirs, opponentName, round, paused
     return () => window.clearInterval(timer);
   }, [mapId, paused, speed, swapSides]);
 
+  // Keep the radar header toggle in sync with the app-wide mute flag.
+  const [muted, setMuted] = useState(isSoundMuted);
+  useEffect(() => subscribeSoundMuted(setMuted), []);
+  const toggleRadarMute = (): void => {
+    const next = !isSoundMuted();
+    setSoundMuted(next);
+    setMuted(next);
+  };
+
+  // Synthesized cues driven by the simulation state rather than the render pass:
+  // new tracers = gunfire, new utility = whoosh / ignition, C4 = accelerating beep,
+  // and the end-of-round outcome = defuse chime or detonation boom.
+  const seenTracers = useRef<Set<string>>(new Set());
+  const seenSmokes = useRef<Set<string>>(new Set());
+  const seenFires = useRef<Set<string>>(new Set());
+  const lastEvent = useRef(state.event);
+
+  useEffect(() => {
+    if (!paused) {
+      const fresh = state.tracers.filter((tracer) => !seenTracers.current.has(tracer.id)).length;
+      if (fresh) playRadarGunfire(fresh);
+    }
+    seenTracers.current = new Set(state.tracers.map((tracer) => tracer.id));
+  }, [state.tracers, paused]);
+
+  useEffect(() => {
+    if (!paused) {
+      if (state.smokes.some((smoke) => !seenSmokes.current.has(smoke.id))) playRadarSmoke();
+      if (state.fires.some((fire) => !seenFires.current.has(fire.id))) playRadarFire();
+    }
+    seenSmokes.current = new Set(state.smokes.map((smoke) => smoke.id));
+    seenFires.current = new Set(state.fires.map((fire) => fire.id));
+  }, [state.smokes, state.fires, paused]);
+
+  useEffect(() => {
+    if (paused || state.fires.length === 0) return;
+    const timer = window.setInterval(() => playRadarCrackle(), 1000);
+    return () => window.clearInterval(timer);
+  }, [paused, state.fires.length]);
+
+  const c4At = state.c4?.at ?? null;
+  const c4Site = state.c4?.site ?? null;
+  useEffect(() => {
+    if (c4At === null || paused || state.respawnAt !== null) return;
+    let stopped = false;
+    let timer = 0;
+    const schedule = (): void => {
+      if (stopped) return;
+      const remaining = Math.max(0, c4At + 45000 - Date.now());
+      playRadarC4Beep();
+      // Tempo climbs from ~1.1s down to ~0.14s as the timer runs out.
+      const interval = Math.max(140, Math.min(1100, remaining / 32));
+      timer = window.setTimeout(schedule, interval);
+    };
+    schedule();
+    return () => { stopped = true; window.clearTimeout(timer); };
+  }, [c4At, c4Site, paused, state.respawnAt]);
+
+  useEffect(() => {
+    if (!paused && state.event !== lastEvent.current) {
+      if (state.event.includes('DEFUSED')) playRadarDefuse();
+      else if (state.event.includes('DETONATED')) playRadarDetonation();
+    }
+    lastEvent.current = state.event;
+  }, [state.event, paused]);
+
   const now = Date.now();
   return (
     <div className="radar-shell">
@@ -793,6 +870,7 @@ export function TacticalRadar({ mapId, ours, theirs, opponentName, round, paused
         <span className={`radar-economy ${economy.ours.toLowerCase().replace(/\s+/g, '-')}`}>{economy.ours} · {economy.theirs}</span>
         <span className="radar-tactic">{tactic}</span>
         <span className="radar-round">ROUND {Math.min(round, 24)}</span>
+        <button className="sound-toggle radar-sound-toggle" onClick={toggleRadarMute} title={muted ? 'Radar sound off – click to unmute' : 'Radar sound on – click to mute'} aria-label={muted ? 'Unmute radar sound' : 'Mute radar sound'}>{muted ? <VolumeX size={13} /> : <Volume2 size={13} />}</button>
       </div>
       <div className="radar-map-wrap">
         <svg className="radar-svg" viewBox="0 0 100 100" role="img" aria-label={`${map.name} tactical radar`}>

@@ -2006,3 +2006,7 @@
 }
 .fut-card.tier-star .card-watermark,
 .fut-card.tier-icon .card-watermark { opacity: .18; }
+
+/* Compact mute toggle in the radar header */
+.radar-topline .radar-sound-toggle { width: 26px; height: 26px; border-radius: 7px; margin-left: .1rem; }
+.radar-topline .radar-sound-toggle svg { width: 13px; height: 13px; }

@@ -17,6 +17,7 @@ import {
 } from './utils/matchmakingEngine';
 import { leagueService, type OnlineTeamRow, type TopClubRow } from './services/leagueService';
 import { isSoundMuted, playSound, setSoundMuted, subscribeSoundMuted } from './utils/sound';
+import { playRadarFanfare, playRadarRoundWin } from './utils/radarSound';
 import { buyListing, cancelListing, claimSale, createListing, fetchMyListings, fetchOpenListings, marketPayout, MARKET_TAX, type MarketListing } from './services/marketService';
 import { challengeService, type ChallengeManager } from './services/challengeService';
 import { buildScoreboard, type MatchScoreboard } from './services/matchStats';
@@ -2412,6 +2413,7 @@ function ArenaPage({ userId, teamRating, chemistry, perks, league, setLeague, on
   const finish = (won: boolean, finalScore: { us: number; them: number }): void => {
     if (settledRef.current) return;
     settledRef.current = true;
+    if (won) playRadarFanfare();
     setLive(false); setResult(won ? 'win' : 'loss');
     onCareerMatch(won, radarMap, finalScore, opponent.name);
     const board = buildScoreboard(squad, { name: opponent.name, ovr: opponent.ovr }, finalScore);
@@ -2467,6 +2469,7 @@ function ArenaPage({ userId, teamRating, chemistry, perks, league, setLeague, on
     if (!live || paused || result) return;
     const roundNumber = matchRef.current.round;
     const { sim, roundEconomy, nextScore } = simForRound(roundNumber, matchRef.current.score);
+    if (sim.usWon) playRadarRoundWin();
     matchRef.current = { score: nextScore, round: roundNumber + 1 };
     const ecoUpset = (roundEconomy.ours === 'Eco' && roundEconomy.theirs === 'Full Buy' && sim.usWon)
       || (roundEconomy.theirs === 'Eco' && roundEconomy.ours === 'Full Buy' && !sim.usWon);
