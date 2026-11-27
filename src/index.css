@@ -1708,3 +1708,7 @@
 
 .roadmap-head { padding-right: 3.4rem; }
 @media (max-width: 560px) { .roadmap-head { padding-right: 3.2rem; } }
+
+/* ==== Sound toggle in the top bar ==== */
+.sound-toggle { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 9px; border: 1px solid #1f2a3a; background: #0b1220; color: #94a3b8; cursor: pointer; transition: color .15s, border-color .15s; }
+.sound-toggle:hover { color: #f97316; border-color: #f97316; }

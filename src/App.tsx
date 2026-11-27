@@ -15,12 +15,14 @@ import {
   type LeagueTeam,
   type SquadCard,
 } from './utils/matchmakingEngine';
-import { leagueService, type OnlineTeamRow } from './services/leagueService';
+import { leagueService, type OnlineTeamRow, type TopClubRow } from './services/leagueService';
+import { isSoundMuted, playSound, setSoundMuted, subscribeSoundMuted } from './utils/sound';
 import { buyListing, cancelListing, claimSale, createListing, fetchMyListings, fetchOpenListings, marketPayout, MARKET_TAX, type MarketListing } from './services/marketService';
 import { challengeService, type ChallengeManager } from './services/challengeService';
 import { buildScoreboard, type MatchScoreboard } from './services/matchStats';
 import { TacticalRadar, type RadarDuelist, type RadarMapId } from './components/TacticalRadar';
 import { CountryFlag, PlayerSilhouette } from './components/CountryFlag';
+const RARITY_RANK: Record<Tier, number> = { Bronze: 0, Silver: 1, Gold: 2, Star: 3, Icon: 4 };
 const RADAR_MAPS: RadarMapId[] = ['Mirage', 'Inferno', 'Ancient', 'Dust2', 'Nuke'];
 const pickRadarMap = (): RadarMapId => RADAR_MAPS[Math.floor(Math.random() * RADAR_MAPS.length)];
 import { DEFAULT_ACCENT, EMBLEM_ACCENTS, EMBLEMS, TeamEmblem, type EmblemId } from './emblems';
@@ -71,6 +73,8 @@ import {
   X,
   Plus,
   Check,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 
 type Page = 'squad' | 'store' | 'club' | 'market' | 'arena' | 'profile';
@@ -1383,12 +1387,14 @@ function App() {
     setOwned((current) => [...current, ...cardsForClub]);
     setNewCardIds((current) => [...current, ...cardsForClub.map((card) => card.instanceId)]);
     setPack(generated);
+    playSound('reveal', generated.reduce((best, card) => (RARITY_RANK[card.tier] > RARITY_RANK[best] ? card.tier : best), 'Bronze' as Tier));
     bumpQuest('packs');
   }; 
   const awardArenaWin = (reward: number, xp: number, message?: string): void => {
     const boosted = Math.round(reward * (1 + perkValues.matchPrizePct / 100));
     setCoins((current) => current + boosted);
     setManagerXp((current) => current + xp);
+    playSound('win');
     setToast(message ?? `Victory reward: +${boosted.toLocaleString()} coins · +${xp} XP`);
   };
 
@@ -1433,12 +1439,15 @@ function Sidebar({ page, setPage, profile, league }: { page: Page; setPage: (pag
 }
 
 function Header({ profile, coins, cloud, onLogout }: { profile: Profile; coins: number; cloud: CloudSync; onLogout: () => void }) {
+  const [muted, setMuted] = useState(isSoundMuted);
+  useEffect(() => subscribeSoundMuted(setMuted), []);
+  const toggleMute = (): void => { const next = !isSoundMuted(); setSoundMuted(next); if (!next) playSound('click'); };
   const cloudLabel = cloud === 'off' ? 'LOCAL' : cloud === 'error' ? 'SYNC ISSUE' : cloud === 'idle' ? 'SYNCING' : 'CLOUD SAVE';
   const cloudHint = cloud === 'off'
     ? 'Local mode: add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to save and play online'
     : cloud === 'error' ? 'Cloud save failed. Check your Supabase keys and run the SQL script.'
       : cloud === 'idle' ? 'Syncing your club with Supabase...' : 'Club, squad and division seat saved to Supabase';
-  return <header className="ut-header"><div className="mobile-title">CS2 <span>ULTIMATE TEAM</span></div><div className="header-spacer" /><div className={`cloud-state ${cloud}`} title={cloudHint}><i />{cloudLabel}</div><div className="header-manager"><div className="avatar-circle small" style={{ backgroundColor: avatarDetails[profile.avatar].color }}>{avatarDetails[profile.avatar].icon}</div><div className="header-manager-name"><span>MANAGER</span><strong>{profile.nickname || 'New Manager'}</strong></div></div><div className="header-team"><span>TEAM</span><strong>{profile.badge && <i className="club-badge" title={`${profile.badge} club badge`}>{clubMonogram(profile.badge)}</i>}{clubLabel(profile.teamName)}</strong></div><div className="coin-balance"><Coins size={16} /><div><span>COINS</span><strong>{coins.toLocaleString()}</strong></div></div><button className="logout-profile" onClick={onLogout}><LogOut size={14} /> Log Out</button></header>;
+  return <header className="ut-header"><div className="mobile-title">CS2 <span>ULTIMATE TEAM</span></div><div className="header-spacer" /><button className="sound-toggle" onClick={toggleMute} title={muted ? 'Sound off – click to unmute' : 'Sound on – click to mute'} aria-label={muted ? 'Unmute sound' : 'Mute sound'}>{muted ? <VolumeX size={16} /> : <Volume2 size={16} />}</button><div className={`cloud-state ${cloud}`} title={cloudHint}><i />{cloudLabel}</div><div className="header-manager"><div className="avatar-circle small" style={{ backgroundColor: avatarDetails[profile.avatar].color }}>{avatarDetails[profile.avatar].icon}</div><div className="header-manager-name"><span>MANAGER</span><strong>{profile.nickname || 'New Manager'}</strong></div></div><div className="header-team"><span>TEAM</span><strong>{profile.badge && <i className="club-badge" title={`${profile.badge} club badge`}>{clubMonogram(profile.badge)}</i>}{clubLabel(profile.teamName)}</strong></div><div className="coin-balance"><Coins size={16} /><div><span>COINS</span><strong>{coins.toLocaleString()}</strong></div></div><button className="logout-profile" onClick={onLogout}><LogOut size={14} /> Log Out</button></header>;
 }
 
 function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSession) => void }) {
@@ -1583,7 +1592,7 @@ function DailyQuestsPanel({ quests, onClaim, compact = false }: { quests: QuestS
         <div className="quest-copy"><strong>{quest.title}</strong><small>{quest.note}</small><div className="quest-bar"><i style={{ width: `${Math.round((value / quest.target) * 100)}%` }} /></div></div>
         <span className="quest-progress">{value}/{quest.target}</span>
         <b className="quest-reward"><Coins size={12} /> +{quest.reward}</b>
-        <button type="button" className="quest-claim" disabled={!ready} onClick={() => onClaim(quest.id)}>{done ? 'Claimed' : ready ? 'Claim' : `${value}/${quest.target}`}</button>
+        <button type="button" className="quest-claim" disabled={!ready} onClick={() => { playSound('click'); onClaim(quest.id); }}>{done ? 'Claimed' : ready ? 'Claim' : `${value}/${quest.target}`}</button>
       </div>;
     })}</div>
   </div>;
@@ -1743,7 +1752,7 @@ function TeamsPanel({ owned, badge, claimedClubs, onClaim, onEquip }: { owned: O
         </li>); })}</ul>
         {row.have === CLUB_COMPLETION_TARGET ? (row.claimed
           ? <button className={`team-claim ${badge === row.name ? 'equipped' : ''}`} onClick={() => onEquip(badge === row.name ? undefined : row.name)}>{badge === row.name ? <><BadgeCheck size={13} /> Badge equipped · remove</> : <><Shield size={13} /> Equip club badge</>}</button>
-          : <button className="team-claim ready" onClick={() => onClaim(row.name)}><Gift size={13} /> Claim +{CLUB_COMPLETION_REWARD.toLocaleString()} & badge</button>)
+          : <button className="team-claim ready" onClick={() => { playSound('click'); onClaim(row.name); }}><Gift size={13} /> Claim +{CLUB_COMPLETION_REWARD.toLocaleString()} & badge</button>)
           : <div className="team-claim locked"><Lock size={12} /> {CLUB_COMPLETION_TARGET - row.have} player{CLUB_COMPLETION_TARGET - row.have === 1 ? '' : 's'} missing</div>}
       </div>
     ))}</div> : <div className="empty-club"><Box size={32} /><h3>No clubs match</h3><p>Try another search or filter to find your next five-man roster.</p></div>}
@@ -1932,6 +1941,7 @@ function ArenaPage({ userId, teamRating, chemistry, perks, league, setLeague, on
   const [dayResult, setDayResult] = useState<LeagueDayResult | null>(null);
   const [now, setNow] = useState(() => Date.now());
     const [showRoadmap, setShowRoadmap] = useState(false);
+  const [showTopClubs, setShowTopClubs] = useState(false);
   const [browseDivision, setBrowseDivision] = useState<number | null>(null);
   const [scoutTeam, setScoutTeam] = useState<EcoTeam | null>(null);
   const [managerTeam, setManagerTeam] = useState<LeagueTeam | null>(null);
@@ -2107,6 +2117,7 @@ function ArenaPage({ userId, teamRating, chemistry, perks, league, setLeague, on
     setChallengeSeries({ opponent, rounds, us, them });
     onScrimmage(us > them);
     onCareerMatch(us > them, radarMap);
+    if (us > them) playSound('win');
   };
   const closeChallenge = (): void => { setChallengeOpen(false); setChallengeSeries(null); setChallengeResults(null); setChallengeTerm(''); };
   const challengeModal = challengeOpen ? <div className="league-overlay" onClick={closeChallenge}><div className="challenge-modal" onClick={(event) => event.stopPropagation()}>
@@ -2145,9 +2156,10 @@ function ArenaPage({ userId, teamRating, chemistry, perks, league, setLeague, on
     {mode === 'quick' ? <div className="arena-lobby"><div className="arena-lobby-art"><div className="arena-radar"><div className="radar-ring one" /><div className="radar-ring two" /><div className="radar-cross" /><div className="arena-dot one" /><div className="arena-dot two" /><div className="arena-dot three" /></div><div className="arena-lobby-emblem"><Swords size={34} /></div></div><div className="arena-lobby-copy"><div className="eyebrow orange">ARENA MATCHMAKING</div><h2>Choose your opponent.</h2><p>Your active five, chemistry, and manager perks influence every round. Win the BO1 to collect the listed coin reward.</p><div className="arena-stat-line"><span><small>TEAM OVR</small><strong>{teamRating || '--'}</strong></span><span><small>CHEMISTRY</small><strong>{chemistry}</strong></span><span><small>XP ON WIN</small><strong>+{100 + quickOpponent.reward / 10}</strong></span></div><div className="opponent-list">{quickOpponents.map((item) => <button key={item.id} className={`opponent-option ${opponentId === item.id ? 'selected' : ''}`} onClick={() => setOpponentId(item.id)}><span className={`opponent-tier ${item.color}`}>{item.ovr}</span><span><strong>{item.name}</strong><small>{item.ovr} OVR AI opponent</small></span><b><Coins size={13} /> +{item.reward.toLocaleString()}</b></button>)}</div><button className="primary-button arena-start" onClick={() => beginMatch('quick')}><Play size={16} fill="currentColor" /> START MATCH</button><button className="league-ghost arena-scrim" onClick={() => beginMatch('scrim')}><Swords size={15} /> Play Scrimmage (Friendly) <span>{scrimWins}/{SCRIM_WIN_CAP} paid wins</span></button><button className="league-ghost arena-scrim" onClick={openChallenge}><Users size={15} /> Challenge Friend <span>Real club · Bo3</span></button></div></div>
     : <div className="league-shell"><div className="league-hero"><div className="league-rank-badge"><Crown size={20} /><strong>{league.division + 1}</strong><span>DIVISION</span></div><div className="league-hero-copy"><div className="eyebrow orange">DIVISION {league.division + 1} OF 15 · {zoneLabel(zoneIndex).toUpperCase()} · {seasonLabel(league.season).toUpperCase()} · ENDS IN {seasonCountdown(Date.now()).toUpperCase()}</div><div className="zone-badges"><span className="zone-badge">DIV {league.division + 1} • {zoneLabel(zoneIndex).toUpperCase()}</span>{zoneCount > 1 && <span className="zone-badge soft">{zoneCount} ZONES</span>}<span className="zone-badge soft">{humanCount} REAL MANAGERS · {ZONE_SIZE - humanCount} BOTS</span></div><h2>{division.name}</h2><p>16-team room · 24 hourly matches per day · Opponent OVR {division.ovrMin}–{division.ovrMax}{league.division === divisions.length - 1 ? ' · Top 16 World Elite' : ''}</p><div className="league-zone-legend"><span className="promotion">Promote 1–{promoteCount} after all {SLOTS_PER_DAY} matches</span>{league.division > 0 && <span className="relegation">Relegate 14–16 when the table closes</span>}<span><Coins size={12} /> +{LEAGUE_WIN_COINS} win / +{LEAGUE_LOSS_COINS} loss</span></div></div><div className="league-progress"><span>TODAY</span><strong>{Math.min(slot, SLOTS_PER_DAY)} / {SLOTS_PER_DAY}</strong><div className="league-progress-bar"><i style={{ width: `${Math.round((Math.min(slot, SLOTS_PER_DAY) / SLOTS_PER_DAY) * 100)}%` }} /></div><small>{leagueOpponentTeam ? `Next: ${leagueOpponentTeam.name} · ${leagueOpponentTeam.ovr} OVR` : 'Next opponent loading'}</small></div></div>
       <div className="match-clock-card"><div className="match-clock-copy"><div className="eyebrow orange">{liveReady ? 'LIVE BROADCAST WINDOW' : 'HOURLY LEAGUE SCHEDULE'}</div><strong>{liveReady ? 'League match is LIVE now — 2D tactical broadcast, 1x speed only.' : `Next League Match starts at ${slotClockLabel(nextHour)} (in ${countdown})`}</strong><small>{liveReady ? 'Stay on this page to watch the tactical map in real time.' : 'Matches simulate automatically at every :30 — even while you are offline.'}</small></div><div className="match-clock-right"><span className={`clock-big ${liveReady ? 'is-live' : ''}`}>{liveReady ? 'LIVE' : countdown}</span><small>{liveReady ? `Window closes ${String(liveHour ?? 0).padStart(2, '0')}:35` : `Kick-off ${slotClockLabel(nextHour)}`}</small></div></div>
-      <div className="league-actions"><button className="primary-button" onClick={() => beginMatch('scrim')}><Swords size={16} /> Play Scrimmage (Friendly)</button><button className="league-ghost" onClick={openChallenge}><Users size={15} /> Challenge Friend</button><button className="league-ghost" onClick={() => setShowRoadmap(true)}><LayoutGrid size={15} /> View League Roadmap</button><span className="league-prize"><Trophy size={13} /> Friendly wins +{SCRIM_WIN_COINS} · {scrimWins}/{SCRIM_WIN_CAP} paid wins today</span></div><div className={`league-season-progress ${ourRank <= promoteCount ? 'in-zone' : ''}`}><div className="season-progress-main"><span className="eyebrow orange">SEASON PROGRESS</span><strong>Matches Played: {Math.min(slot, SLOTS_PER_DAY)} / {SLOTS_PER_DAY}</strong><small>{atTopDivision ? (ourRank <= promoteCount ? `In the promotion zone · finish Top ${promoteCount} when all ${SLOTS_PER_DAY} matches are played to defend the top division.` : `${SLOTS_PER_DAY - slot} matches left · climb into the Top ${promoteCount} before match ${SLOTS_PER_DAY} to defend your seat.`) : ourRank <= promoteCount ? `In the promotion zone · finish Top ${promoteCount} when all ${SLOTS_PER_DAY} matches are played to move up to ${divisions[league.division + 1].name}.` : `${SLOTS_PER_DAY - slot} matches left · you must climb into the Top ${promoteCount} before match ${SLOTS_PER_DAY} to be promoted.`}</small></div><div className="season-progress-metrics"><div><small>PROMOTION ZONE</small><strong>TOP {promoteCount}</strong></div><div><small>YOUR POSITION</small><strong>#{ourRank}</strong></div><div><small>DIVISION PRIZE</small><strong><Coins size={12} /> {division.reward.toLocaleString()}</strong></div></div><div className="league-progress-bar season"><i style={{ width: `${Math.round((Math.min(slot, SLOTS_PER_DAY) / SLOTS_PER_DAY) * 100)}%` }} /></div></div><div className="standings-head"><div><div className="eyebrow orange">LEAGUE STANDINGS · 16 TEAMS</div><h3>{division.name} · {zoneLabel(zoneIndex)}</h3></div><span>Rank · Team · W/L · Round Diff · Points</span></div><div className="league-table standings-table"><div className="league-table-head"><span>#</span><span>TEAM</span><span>W/L</span><span>RD</span><span>PTS</span></div>{sortedTeams.map((team, index) => { const rank = index + 1; const tierZone = rank <= promoteCount ? 'promotion' : league.division > 0 && rank >= 14 ? 'relegation' : ''; const isHuman = teamKind(team) !== 'bot'; const avatar = isHuman ? avatarDetails[(team.avatar ?? 'ghost') as Avatar] ?? avatarDetails.ghost : null; return <div key={team.id} className={`league-row ${tierZone} ${team.id === 'user' ? 'is-user' : ''} ${isHuman ? 'is-human' : 'is-bot'}`}><span className="league-rank">{rank}</span><span className="league-club">{team.id === 'user' ? <><TeamEmblem emblem={emblem} accent={accent} size={16} /><b>{clubLabel(teamName)}</b></> : <button className="team-link" onClick={() => isHuman ? setManagerTeam(team) : setScoutTeam(ecoTeamById(ecosystem, ecoIdOf(team)) ?? null)}>{team.name}</button>}<em className={`seat-badge ${isHuman ? 'player' : 'bot'}`}>{isHuman ? 'PLAYER' : 'BOT'}</em>{team.id === 'user' && <i>YOU</i>}<small className="seat-meta">{isHuman ? <><span className="seat-avatar" style={{ color: avatar?.color }}>{avatar?.icon}</span>{team.manager ?? 'MANAGER'} · OVR {team.ovr}</> : `AI PRO TEAM · OVR ${team.ovr || teamRating}`}</small></span><span>{team.wins}/{team.losses}</span><span>{team.roundDiff > 0 ? `+${team.roundDiff}` : team.roundDiff}</span><strong>{team.points}</strong></div>; })}</div></div>}
+      <div className="league-actions"><button className="primary-button" onClick={() => beginMatch('scrim')}><Swords size={16} /> Play Scrimmage (Friendly)</button><button className="league-ghost" onClick={openChallenge}><Users size={15} /> Challenge Friend</button><button className="league-ghost" onClick={() => setShowRoadmap(true)}><LayoutGrid size={15} /> View League Roadmap</button><button className="league-ghost" onClick={() => setShowTopClubs(true)}><Globe size={15} /> Global Top Clubs</button><span className="league-prize"><Trophy size={13} /> Friendly wins +{SCRIM_WIN_COINS} · {scrimWins}/{SCRIM_WIN_CAP} paid wins today</span></div><div className={`league-season-progress ${ourRank <= promoteCount ? 'in-zone' : ''}`}><div className="season-progress-main"><span className="eyebrow orange">SEASON PROGRESS</span><strong>Matches Played: {Math.min(slot, SLOTS_PER_DAY)} / {SLOTS_PER_DAY}</strong><small>{atTopDivision ? (ourRank <= promoteCount ? `In the promotion zone · finish Top ${promoteCount} when all ${SLOTS_PER_DAY} matches are played to defend the top division.` : `${SLOTS_PER_DAY - slot} matches left · climb into the Top ${promoteCount} before match ${SLOTS_PER_DAY} to defend your seat.`) : ourRank <= promoteCount ? `In the promotion zone · finish Top ${promoteCount} when all ${SLOTS_PER_DAY} matches are played to move up to ${divisions[league.division + 1].name}.` : `${SLOTS_PER_DAY - slot} matches left · you must climb into the Top ${promoteCount} before match ${SLOTS_PER_DAY} to be promoted.`}</small></div><div className="season-progress-metrics"><div><small>PROMOTION ZONE</small><strong>TOP {promoteCount}</strong></div><div><small>YOUR POSITION</small><strong>#{ourRank}</strong></div><div><small>DIVISION PRIZE</small><strong><Coins size={12} /> {division.reward.toLocaleString()}</strong></div></div><div className="league-progress-bar season"><i style={{ width: `${Math.round((Math.min(slot, SLOTS_PER_DAY) / SLOTS_PER_DAY) * 100)}%` }} /></div></div><div className="standings-head"><div><div className="eyebrow orange">LEAGUE STANDINGS · 16 TEAMS</div><h3>{division.name} · {zoneLabel(zoneIndex)}</h3></div><span>Rank · Team · W/L · Round Diff · Points</span></div><div className="league-table standings-table"><div className="league-table-head"><span>#</span><span>TEAM</span><span>W/L</span><span>RD</span><span>PTS</span></div>{sortedTeams.map((team, index) => { const rank = index + 1; const tierZone = rank <= promoteCount ? 'promotion' : league.division > 0 && rank >= 14 ? 'relegation' : ''; const isHuman = teamKind(team) !== 'bot'; const avatar = isHuman ? avatarDetails[(team.avatar ?? 'ghost') as Avatar] ?? avatarDetails.ghost : null; return <div key={team.id} className={`league-row ${tierZone} ${team.id === 'user' ? 'is-user' : ''} ${isHuman ? 'is-human' : 'is-bot'}`}><span className="league-rank">{rank}</span><span className="league-club">{team.id === 'user' ? <><TeamEmblem emblem={emblem} accent={accent} size={16} /><b>{clubLabel(teamName)}</b></> : <button className="team-link" onClick={() => isHuman ? setManagerTeam(team) : setScoutTeam(ecoTeamById(ecosystem, ecoIdOf(team)) ?? null)}>{team.name}</button>}<em className={`seat-badge ${isHuman ? 'player' : 'bot'}`}>{isHuman ? 'PLAYER' : 'BOT'}</em>{team.id === 'user' && <i>YOU</i>}<small className="seat-meta">{isHuman ? <><span className="seat-avatar" style={{ color: avatar?.color }}>{avatar?.icon}</span>{team.manager ?? 'MANAGER'} · OVR {team.ovr}</> : `AI PRO TEAM · OVR ${team.ovr || teamRating}`}</small></span><span>{team.wins}/{team.losses}</span><span>{team.roundDiff > 0 ? `+${team.roundDiff}` : team.roundDiff}</span><strong>{team.points}</strong></div>; })}</div></div>}
     {roadmap}
     {challengeModal}
+    {showTopClubs && <GlobalClubsBoard onClose={() => setShowTopClubs(false)} />}
     {browseDivision !== null && <DivisionBrowser teamName={teamName} division={browseDivision} ecosystem={ecosystem} liveTeams={browseDivision === league.division ? sortedTeams : null} onDivision={setBrowseDivision} onTeam={setScoutTeam} onClose={() => setBrowseDivision(null)} />}
     {scoutTeam && <TeamRosterModal team={scoutTeam} onClose={() => setScoutTeam(null)} />}
     {managerTeam && <ManagerRosterModal team={managerTeam} division={league.division} zone={zoneLabel(zoneIndex)} onClose={() => setManagerTeam(null)} />}
@@ -2279,6 +2291,31 @@ function LeagueRoadmap({ current, onClose, onOpen }: { current: number; onClose:
       </footer>
     </div>
   </div>;
+}
+
+function GlobalClubsBoard({ onClose }: { onClose: () => void }) {
+  const [rows, setRows] = useState<TopClubRow[] | null>(null);
+  useEffect(() => {
+    let active = true;
+    void leagueService.fetchTopClubs().then((result) => { if (active) setRows(result); });
+    return () => { active = false; };
+  }, []);
+  return <div className="league-overlay division-overlay" onClick={onClose}><div className="division-modal" onClick={(event) => event.stopPropagation()}>
+    <button className="overlay-close" onClick={onClose}><X size={18} /></button>
+    <div className="division-modal-head">
+      <div className="division-modal-copy"><div className="eyebrow orange">GLOBAL LEADERBOARD · {rows?.length ?? 0} CLUBS</div><h2>Global Top Clubs</h2><p>Ranked by division, then points, then team rating (OVR).</p></div>
+    </div>
+    <div className="league-table division-table">
+      <div className="league-table-head"><span>#</span><span>CLUB</span><span>DIV</span><span>W</span><span>L</span><span>RD</span><span>PTS</span></div>
+      {rows?.map((club) => { const emblem = club.emblem as EmblemId; return <div key={club.userId} className="league-row">
+        <span className="league-rank">{club.rank}</span>
+        <span className="league-club"><TeamEmblem emblem={emblem} size={16} /><b>{clubLabel(club.clubName)}</b><small>{club.managerName} · OVR {club.teamOvr}</small></span>
+        <span>{club.division + 1}</span><span>{club.wins}</span><span>{club.losses}</span><span>{club.roundDiff > 0 ? `+${club.roundDiff}` : club.roundDiff}</span><strong>{club.points}</strong>
+      </div>; })}
+      {rows && !rows.length && <div className="division-empty">No clubs on the global leaderboard yet.</div>}
+      {!rows && <div className="division-empty">Loading the global leaderboard…</div>}
+    </div>
+  </div></div>;
 }
 
 function DivisionBrowser({ division, ecosystem, liveTeams, onDivision, onTeam, onClose, teamName }: { division: number; ecosystem: EcoTeam[]; teamName?: string; liveTeams: LeagueTeam[] | null; onDivision: (division: number) => void; onTeam: (team: EcoTeam) => void; onClose: () => void }) {

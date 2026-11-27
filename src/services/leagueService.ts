@@ -35,6 +35,34 @@ export type MyTeamRow = {
   points: number;
 };
 
+export type TopClubRow = {
+  rank: number;
+  userId: string;
+  clubName: string;
+  managerName: string;
+  emblem: string;
+  division: number;
+  teamOvr: number;
+  wins: number;
+  losses: number;
+  roundDiff: number;
+  points: number;
+};
+
+type TopClubProfile = { manager_name?: string | null; emblem?: string | null };
+
+type TopClubRaw = {
+  user_id?: string | null;
+  club_name?: string | null;
+  division?: number | null;
+  squad_ovr?: number | null;
+  wins?: number | null;
+  losses?: number | null;
+  round_diff?: number | null;
+  points?: number | null;
+  profiles?: TopClubProfile | TopClubProfile[] | null;
+};
+
 type ProfileEmbed = { manager_name?: string | null; avatar?: string | null } | null;
 
 type TeamRow = {
@@ -108,6 +136,47 @@ export const leagueService = {
       });
     } catch (error) {
       report('[league_teams] Could not load the live zone. Did you run the SQL script?', error);
+      return [];
+    }
+  },
+
+  /**
+   * Global club leaderboard: highest division first, then points, then team
+   * rating (squad OVR). Joins `profiles` for the manager name and club emblem.
+   */
+  async fetchTopClubs(limit = 50): Promise<TopClubRow[]> {
+    const client = getSupabase();
+    if (!client) return [];
+    try {
+      const { data, error } = await client
+        .from('league_teams')
+        .select('user_id, club_name, division, squad_ovr, wins, losses, round_diff, points, profiles(manager_name, emblem)')
+        .order('division', { ascending: false })
+        .order('points', { ascending: false })
+        .order('squad_ovr', { ascending: false })
+        .limit(limit);
+      if (error) throw error;
+      return (data ?? []).flatMap((raw, index) => {
+        const row = raw as TopClubRaw;
+        const userId = text(row.user_id);
+        if (!userId) return [];
+        const profile = Array.isArray(row.profiles) ? row.profiles[0] ?? null : row.profiles ?? null;
+        return [{
+          rank: index + 1,
+          userId,
+          clubName: text(row.club_name, 'NEW CLUB'),
+          managerName: text(profile?.manager_name, 'MANAGER'),
+          emblem: text(profile?.emblem, 'shield'),
+          division: number(row.division),
+          teamOvr: number(row.squad_ovr, 50),
+          wins: number(row.wins),
+          losses: number(row.losses),
+          roundDiff: number(row.round_diff),
+          points: number(row.points),
+        }];
+      });
+    } catch (error) {
+      report('[league_teams] Could not load the global club leaderboard. Did you run the SQL script?', error);
       return [];
     }
   },
