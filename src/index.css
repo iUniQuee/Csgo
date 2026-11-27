@@ -1973,3 +1973,36 @@
 .standings-table .league-club small { width: 100%; }
 .standings-table .seat-badge { font-size: 7px; padding: .1rem .32rem; }
 .standings-table .league-row.is-bot .league-club b { color: #b6c2d2; }
+
+/* ==== Player card readability refinements ==== */
+/* 1. Pro team subtitle: larger, fully opaque, stronger contrast. */
+.card-body .card-team {
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .05em;
+  opacity: 1;
+  color: #ffffff;
+  text-shadow: 0 1px 1px rgba(2, 6, 23, .6), 0 0 6px rgba(2, 6, 23, .35);
+}
+.fut-card.compact .card-body .card-team { font-size: 8.5px; letter-spacing: .04em; }
+
+/* 2. Bottom stats: inset the row from the angled card edges so AIM/CLT never clip. */
+.card-body .card-stats {
+  width: 100%;
+  padding-left: .55rem;
+  padding-right: .55rem;
+  padding-top: .3rem;
+  letter-spacing: .035em;
+}
+.card-body .card-stats > span { padding: 0 .1rem; }
+.card-body .card-stats > span:first-child { padding-left: 0; }
+.card-body .card-stats > span:last-child { padding-right: 0; }
+.fut-card.compact .card-body .card-stats { padding-left: .5rem; padding-right: .5rem; }
+
+/* 3. Softer background flag so the silhouette reads more cleanly. */
+.card-portrait .card-watermark {
+  opacity: .13;
+  filter: saturate(.7) drop-shadow(0 1px 2px rgba(2, 6, 23, .18));
+}
+.fut-card.tier-star .card-watermark,
+.fut-card.tier-icon .card-watermark { opacity: .18; }
