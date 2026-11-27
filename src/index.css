@@ -2129,3 +2129,104 @@
   .club-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   .pack-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
+
+/* ==== Special Edition card tiers ==== */
+.card-edition-tag {
+  position:absolute; z-index:20; left:50%; top:.14rem; transform:translateX(-50%);
+  border-radius:999px; border:1px solid rgba(255,255,255,.55); padding:.05rem .32rem;
+  font-size:6px; font-weight:900; letter-spacing:.14em; color:#0b1220;
+  background:linear-gradient(135deg,#fff5c2,#f5c451); box-shadow:0 1px 4px rgba(0,0,0,.45);
+}
+.edition-major-mvp { background:linear-gradient(135deg,#f7e7a1,#c084fc 55%,#f5d061); color:#1e0a3c; }
+.edition-totw { background:linear-gradient(135deg,#fff6cf,#d4af37 55%,#8a6a17); }
+.edition-wonderkid { background:linear-gradient(135deg,#a7fff1,#22d3ee 50%,#34d399); color:#03211f; }
+
+.fut-card.tier-major-mvp {
+  color:#f8fafc;
+  --card-metal:linear-gradient(135deg,#f7e7a1 0%,#c084fc 18%,#7c3aed 42%,#f5d061 60%,#4c1d95 82%,#f7e7a1 100%);
+  --card-surface:
+    repeating-linear-gradient(112deg,rgba(245,208,97,.2) 0 1.5px,transparent 1.5px 16px),
+    radial-gradient(80% 52% at 22% 6%,rgba(245,208,97,.55),transparent 60%),
+    radial-gradient(90% 62% at 82% 100%,rgba(192,132,252,.6),transparent 66%),
+    linear-gradient(165deg,#3b0764 0%,#5b21b6 34%,#2e1065 64%,#4c1d95 100%);
+  filter:drop-shadow(0 12px 22px rgba(2,6,23,.5)) drop-shadow(0 0 16px rgba(192,132,252,.35));
+  animation:mvpFoil 5s ease-in-out infinite;
+}
+.fut-card.tier-totw {
+  color:#f8fafc;
+  --card-metal:linear-gradient(135deg,#fff6cf 0%,#d4af37 22%,#fffbe8 44%,#a67c00 66%,#5b4207 84%,#f5d97a 100%);
+  --card-surface:
+    repeating-linear-gradient(118deg,rgba(245,208,97,.16) 0 1px,transparent 1px 18px),
+    radial-gradient(70% 46% at 24% 8%,rgba(245,208,97,.4),transparent 62%),
+    radial-gradient(80% 60% at 82% 96%,rgba(212,175,55,.28),transparent 66%),
+    linear-gradient(162deg,#05070c 0%,#131a26 38%,#1c2331 62%,#05070c 100%);
+  filter:drop-shadow(0 12px 22px rgba(2,6,23,.55)) drop-shadow(0 0 15px rgba(212,175,55,.35));
+  animation:totwShimmer 4.5s ease-in-out infinite;
+}
+.fut-card.tier-wonderkid {
+  color:#ecfeff;
+  --card-metal:linear-gradient(135deg,#a7fff1 0%,#22d3ee 26%,#d1fae5 46%,#059669 70%,#0891b2 88%,#a7fff1 100%);
+  --card-surface:
+    repeating-linear-gradient(112deg,rgba(52,245,197,.16) 0 1.5px,transparent 1.5px 17px),
+    radial-gradient(78% 50% at 22% 6%,rgba(34,211,238,.5),transparent 60%),
+    radial-gradient(86% 58% at 82% 98%,rgba(52,211,153,.5),transparent 66%),
+    linear-gradient(164deg,#022c2b 0%,#065f5b 34%,#0e7490 62%,#022c22 100%);
+  filter:drop-shadow(0 12px 22px rgba(2,6,23,.5)) drop-shadow(0 0 16px rgba(34,211,238,.35));
+  animation:wonderPulse 3.6s ease-in-out infinite;
+}
+.fut-card.tier-major-mvp .card-portrait::before,
+.fut-card.tier-totw .card-portrait::before,
+.fut-card.tier-wonderkid .card-portrait::before {
+  background:
+    repeating-linear-gradient(0deg,rgba(255,255,255,.12) 0 1px,transparent 1px 13px),
+    repeating-linear-gradient(90deg,rgba(255,255,255,.12) 0 1px,transparent 1px 13px),
+    repeating-linear-gradient(135deg,rgba(255,255,255,.2) 0 1px,transparent 1px 17px),
+    radial-gradient(72% 62% at 50% 50%,rgba(255,255,255,.18),transparent 72%);
+}
+.fut-card.tier-major-mvp .card-portrait,
+.fut-card.tier-totw .card-portrait,
+.fut-card.tier-wonderkid .card-portrait { border-color:rgba(255,255,255,.45); background:rgba(2,6,23,.28); }
+.fut-card.tier-major-mvp .card-name,.fut-card.tier-major-mvp .card-team,
+.fut-card.tier-totw .card-name,.fut-card.tier-totw .card-team,
+.fut-card.tier-wonderkid .card-name,.fut-card.tier-wonderkid .card-team {
+  color:#ffffff; text-shadow:0 1px 2px rgba(2,6,23,.85),0 0 8px rgba(2,6,23,.45);
+}
+.fut-card.tier-major-mvp .card-ovr,.fut-card.tier-totw .card-ovr { color:#f7d97f; text-shadow:0 2px 4px rgba(0,0,0,.85),0 0 12px rgba(212,175,55,.45); }
+.fut-card.tier-wonderkid .card-ovr { color:#a7fff1; text-shadow:0 2px 4px rgba(0,0,0,.8),0 0 12px rgba(34,211,238,.5); }
+.fut-card.tier-major-mvp .card-ovr-block i,.fut-card.tier-totw .card-ovr-block i,
+.fut-card.tier-wonderkid .card-ovr-block i { color:#e2e8f0; text-shadow:0 1px 2px rgba(0,0,0,.8); }
+.fut-card.tier-major-mvp .card-role { border-color:rgba(245,208,97,.6); background:rgba(59,7,100,.55); color:#f7e7a1; box-shadow:0 0 8px rgba(192,132,252,.3); }
+.fut-card.tier-totw .card-role { border-color:rgba(212,175,55,.65); background:rgba(5,7,12,.7); color:#ffe9a8; box-shadow:0 0 8px rgba(212,175,55,.26); }
+.fut-card.tier-wonderkid .card-role { border-color:rgba(52,245,197,.65); background:rgba(2,44,43,.65); color:#a7fff1; box-shadow:0 0 8px rgba(34,211,238,.28); }
+.fut-card.tier-major-mvp .card-stats { border-top-color:rgba(245,208,97,.45); color:#f5e8ff; }
+.fut-card.tier-totw .card-stats { border-top-color:rgba(212,175,55,.45); color:#f8ecc2; }
+.fut-card.tier-wonderkid .card-stats { border-top-color:rgba(52,245,197,.45); color:#d9fff8; }
+.fut-card.tier-major-mvp .card-stats>span+span { border-left-color:rgba(245,208,97,.3); }
+.fut-card.tier-totw .card-stats>span+span { border-left-color:rgba(212,175,55,.3); }
+.fut-card.tier-wonderkid .card-stats>span+span { border-left-color:rgba(52,245,197,.3); }
+.fut-card.tier-major-mvp .card-stats b { color:#f7e7a1; }
+.fut-card.tier-totw .card-stats b { color:#ffe9a8; }
+.fut-card.tier-wonderkid .card-stats b { color:#a7fff1; }
+.fut-card.tier-major-mvp .card-rarity-icon { background:rgba(245,208,97,.2); color:#f7e7a1; }
+.fut-card.tier-totw .card-rarity-icon { background:rgba(212,175,55,.2); color:#ffe9a8; }
+.fut-card.tier-wonderkid .card-rarity-icon { background:rgba(52,245,197,.2); color:#a7fff1; }
+.fut-card.tier-major-mvp .card-watermark,.fut-card.tier-totw .card-watermark,
+.fut-card.tier-wonderkid .card-watermark { opacity:.24; filter:saturate(.9) drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
+
+@keyframes mvpFoil { 0%,100% { filter:drop-shadow(0 12px 22px rgba(2,6,23,.5)) drop-shadow(0 0 12px rgba(192,132,252,.28)); } 50% { filter:drop-shadow(0 12px 22px rgba(2,6,23,.5)) drop-shadow(0 0 22px rgba(245,208,97,.5)); } }
+@keyframes totwShimmer { 0%,100% { filter:drop-shadow(0 12px 22px rgba(2,6,23,.55)) drop-shadow(0 0 10px rgba(212,175,55,.24)); } 50% { filter:drop-shadow(0 12px 22px rgba(2,6,23,.55)) drop-shadow(0 0 20px rgba(245,208,97,.5)); } }
+@keyframes wonderPulse { 0%,100% { filter:drop-shadow(0 12px 22px rgba(2,6,23,.5)) drop-shadow(0 0 10px rgba(34,211,238,.28)); } 50% { filter:drop-shadow(0 12px 22px rgba(2,6,23,.5)) drop-shadow(0 0 20px rgba(52,245,197,.5)); } }
+
+.walkout.tier-major-mvp { border-color:#c084fc; box-shadow:0 0 80px rgba(192,132,252,.4),inset 0 0 60px rgba(245,208,97,.14); }
+.walkout.tier-totw { border-color:#d4af37; box-shadow:0 0 80px rgba(212,175,55,.38),inset 0 0 60px rgba(212,175,55,.12); }
+.walkout.tier-wonderkid { border-color:#22d3ee; box-shadow:0 0 80px rgba(34,211,238,.38),inset 0 0 60px rgba(52,211,153,.12); }
+.walkout-rays.tier-major-mvp { background:conic-gradient(from 0deg,transparent 0 5%,rgba(192,132,252,.2) 5% 7%,transparent 7% 15%,rgba(245,208,97,.16) 15% 17%,transparent 17% 100%); }
+.walkout-rays.tier-totw { background:conic-gradient(from 0deg,transparent 0 5%,rgba(212,175,55,.22) 5% 7%,transparent 7% 15%,rgba(212,175,55,.14) 15% 17%,transparent 17% 100%); }
+.walkout-rays.tier-wonderkid { background:conic-gradient(from 0deg,transparent 0 5%,rgba(34,211,238,.22) 5% 7%,transparent 7% 15%,rgba(52,245,197,.16) 15% 17%,transparent 17% 100%); }
+.walkout-role .tier-emblem.tier-major-mvp { border-color:rgba(192,132,252,.7); background:rgba(192,132,252,.14); color:#e9d5ff; }
+.walkout-role .tier-emblem.tier-totw { border-color:rgba(212,175,55,.7); background:rgba(212,175,55,.14); color:#ffe9a8; }
+.walkout-role .tier-emblem.tier-wonderkid { border-color:rgba(52,245,197,.7); background:rgba(52,245,197,.14); color:#a7fff1; }
+.card-edition-perk { margin-top:.55rem; border-radius:.5rem; border:1px solid rgba(148,163,184,.25); background:rgba(15,23,42,.55); padding:.4rem .6rem; font-size:9px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:#cbd5e1; }
+.card-edition-perk.tier-major-mvp { border-color:rgba(192,132,252,.5); background:rgba(124,58,237,.14); color:#e9d5ff; }
+.card-edition-perk.tier-totw { border-color:rgba(212,175,55,.5); background:rgba(212,175,55,.12); color:#ffe9a8; }
+.card-edition-perk.tier-wonderkid { border-color:rgba(52,245,197,.5); background:rgba(34,211,238,.12); color:#a7fff1; }

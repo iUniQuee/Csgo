@@ -52,6 +52,9 @@ const RARITY_NOTES: Record<string, number[]> = {
   Gold: [523.25, 659.25, 783.99, 1046.5],
   Star: [523.25, 659.25, 783.99, 1046.5],
   Icon: [523.25, 659.25, 783.99, 1046.5],
+  Wonderkid: [659.25, 830.61, 987.77, 1318.51],
+  TOTW: [587.33, 739.99, 880, 1174.66],
+  'Major MVP': [523.25, 659.25, 783.99, 1046.5, 1318.51],
 };
 
 /** Crisp, short tick for buttons and coin claims. */

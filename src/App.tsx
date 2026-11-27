@@ -23,7 +23,7 @@ import { challengeService, type ChallengeManager } from './services/challengeSer
 import { buildScoreboard, type MatchScoreboard } from './services/matchStats';
 import { TacticalRadar, type RadarDuelist, type RadarMapId } from './components/TacticalRadar';
 import { CountryFlag, PlayerSilhouette } from './components/CountryFlag';
-const RARITY_RANK: Record<Tier, number> = { Bronze: 0, Silver: 1, Gold: 2, Star: 3, Icon: 4 };
+const RARITY_RANK: Record<Tier, number> = { Bronze: 0, Silver: 1, Gold: 2, Star: 3, Icon: 4, Wonderkid: 5, TOTW: 6, 'Major MVP': 7 };
 const RADAR_MAPS: RadarMapId[] = ['Mirage', 'Inferno', 'Ancient', 'Dust2', 'Nuke'];
 const pickRadarMap = (): RadarMapId => RADAR_MAPS[Math.floor(Math.random() * RADAR_MAPS.length)];
 import { DEFAULT_ACCENT, EMBLEM_ACCENTS, EMBLEMS, TeamEmblem, type EmblemId } from './emblems';
@@ -79,7 +79,11 @@ import {
 } from 'lucide-react';
 
 type Page = 'squad' | 'store' | 'club' | 'market' | 'arena' | 'profile';
-type Tier = 'Bronze' | 'Silver' | 'Gold' | 'Star' | 'Icon';
+type Tier = 'Bronze' | 'Silver' | 'Gold' | 'Star' | 'Icon' | 'Wonderkid' | 'TOTW' | 'Major MVP';
+type SpecialTier = 'Major MVP' | 'TOTW' | 'Wonderkid';
+const isSpecialTier = (tier: Tier): tier is SpecialTier => tier === 'Major MVP' || tier === 'TOTW' || tier === 'Wonderkid';
+/** CSS class slug for a tier: "Major MVP" becomes "major-mvp". */
+const tierSlug = (tier: Tier): string => tier === 'Major MVP' ? 'major-mvp' : tier.toLowerCase();
 type Role = 'AWPer' | 'Entry' | 'IGL' | 'Rifler' | 'Lurker';
 type Perk = 'Tactical Genius' | 'Aim Coach' | 'Scout Master' | 'Clutch Master' | 'Match Prize Booster' | 'Pack Luck Boost';
 type Avatar = 'falcon' | 'wolf' | 'visor' | 'tiger' | 'ghost' | 'sentinel';
@@ -106,7 +110,9 @@ const SCRIM_CARD_XP = 25;
 const cardLevel = (level?: number): number => Math.min(CARD_MAX_LEVEL, Math.max(1, level || 1));
 const cardXp = (xp?: number): number => Math.max(0, Math.floor(xp || 0));
 const grantCardXp = (card: OwnedCard, amount: number): OwnedCard => {
-  let xp = cardXp(card.xp) + Math.max(0, Math.floor(amount));
+  // Wonderkid prodigies level twice as fast from every match XP payout.
+  const earned = card.tier === 'Wonderkid' ? amount * 2 : amount;
+  let xp = cardXp(card.xp) + Math.max(0, Math.floor(earned));
   let level = cardLevel(card.level);
   while (xp >= CARD_XP_STEP && level < CARD_MAX_LEVEL) { xp -= CARD_XP_STEP; level += 1; }
   if (level >= CARD_MAX_LEVEL) xp = Math.min(xp, CARD_XP_STEP);
@@ -144,7 +150,7 @@ const economyForRound = (round: number): RoundEconomy => {
 };
 const economyPower = (round: EconomyRound): number => round === 'Eco' ? -8 : round === 'Force Buy' ? -3 : round === 'Pistol' ? -2 : 0;
 const withEconomy = (value: number, delta: number): number => Math.max(50, Math.min(99, value + delta));
-type PackId = 'bronze' | 'silver' | 'gold' | 'major' | 'daily' | 'awp' | 'rifle' | 'asia' | 'igl';
+type PackId = 'bronze' | 'silver' | 'gold' | 'major' | 'daily' | 'awp' | 'rifle' | 'asia' | 'igl' | 'special';
 type DropRow = [Tier, number];
 type PackDefinition = { id: PackId; name: string; price: number; tier: Tier; art: string; tagline: string; description: string; odds: string; count: number; badge?: string; color?: string; soft?: string; bulk?: boolean };
 type MatchForm = { result: 'W' | 'L'; us: number; them: number; opponent: string };
@@ -728,13 +734,16 @@ function settleLiveLeagueSlot(league: LeagueState, slotStart: number, teamRating
 }
 
 const roles: Role[] = ['Entry', 'AWPer', 'IGL', 'Rifler', 'Lurker'];
-const tiers: Tier[] = ['Bronze', 'Silver', 'Gold', 'Star', 'Icon'];
+const tiers: Tier[] = ['Bronze', 'Silver', 'Gold', 'Star', 'Icon', 'Wonderkid', 'TOTW', 'Major MVP'];
 const tierConfig: Record<Tier, { color: string; soft: string; price: number; sell: number; subtitle: string }> = {
   Bronze: { color: '#a9784a', soft: 'rgba(169,120,74,.14)', price: 500, sell: 50, subtitle: 'Academy rookie' },
   Silver: { color: '#c3cbd9', soft: 'rgba(195,203,217,.14)', price: 900, sell: 120, subtitle: 'Tier-2 professional' },
   Gold: { color: '#f5c451', soft: 'rgba(245,196,81,.14)', price: 1500, sell: 350, subtitle: 'Tier-1 star' },
   Star: { color: '#d98cff', soft: 'rgba(217,140,255,.14)', price: 0, sell: 1000, subtitle: 'Walkout elite' },
   Icon: { color: '#55e8ef', soft: 'rgba(85,232,239,.14)', price: 0, sell: 3000, subtitle: 'Major legend' },
+  Wonderkid: { color: '#34f5c5', soft: 'rgba(52,245,197,.16)', price: 0, sell: 1800, subtitle: 'Rising prodigy' },
+  TOTW: { color: '#ffd76a', soft: 'rgba(255,215,106,.16)', price: 0, sell: 2600, subtitle: 'Team of the Week' },
+  'Major MVP': { color: '#c084fc', soft: 'rgba(192,132,252,.18)', price: 0, sell: 5000, subtitle: 'Major MVP edition' },
 };
 const perkDetails: Record<Perk, string> = {
   'Tactical Genius': '+3 → +6 → +10 Chemistry (LV 15 / 30)',
@@ -803,7 +812,7 @@ const cardFromSnapshot = (snapshot: Record<string, unknown>, prefix: string): Ow
   const name = typeof snapshot.name === 'string' ? snapshot.name : '';
   const role = typeof snapshot.role === 'string' && roles.includes(snapshot.role as Role) ? snapshot.role as Role : null;
   if (!id || !name || !role) return null;
-  const tier = typeof snapshot.tier === 'string' && ['Bronze', 'Silver', 'Gold', 'Star', 'Icon'].includes(snapshot.tier) ? snapshot.tier as Tier : 'Gold';
+  const tier = typeof snapshot.tier === 'string' && ['Bronze', 'Silver', 'Gold', 'Star', 'Icon', 'Wonderkid', 'TOTW', 'Major MVP'].includes(snapshot.tier) ? snapshot.tier as Tier : 'Gold';
   const stat = (value: unknown, fallback: number): number => Math.min(99, Math.max(1, Math.round(Number(value) || fallback)));
   const ovr = stat(snapshot.ovr, 60);
   return {
@@ -816,12 +825,13 @@ const dropTables: Record<PackId, DropRow[]> = {
   daily: [['Bronze', 70], ['Silver', 25], ['Gold', 5]],
   bronze: [['Bronze', 75], ['Silver', 24], ['Gold', 1]],
   silver: [['Bronze', 30], ['Silver', 55], ['Gold', 14], ['Star', 1]],
-  gold: [['Silver', 35], ['Gold', 58], ['Star', 6], ['Icon', 1]],
+  gold: [['Silver', 33], ['Gold', 56], ['Star', 6], ['Wonderkid', 2], ['TOTW', 2], ['Icon', 1]],
   awp: [['Silver', 25], ['Gold', 63], ['Star', 10], ['Icon', 2]],
   rifle: [['Silver', 25], ['Gold', 63], ['Star', 10], ['Icon', 2]],
   asia: [['Silver', 25], ['Gold', 63], ['Star', 10], ['Icon', 2]],
   igl: [['Silver', 25], ['Gold', 63], ['Star', 10], ['Icon', 2]],
-  major: [['Gold', 60], ['Star', 37], ['Icon', 3]],
+  major: [['Gold', 55], ['Star', 34], ['Major MVP', 3], ['TOTW', 4], ['Icon', 4]],
+  special: [['Wonderkid', 42], ['TOTW', 30], ['Major MVP', 6], ['Gold', 10], ['Star', 8], ['Icon', 4]],
 };
 const rollTier = (table: DropRow[]): Tier => {
   const total = table.reduce((sum, [, weight]) => sum + weight, 0);
@@ -865,25 +875,49 @@ const countdownLabel = (ms: number): string => {
 const packDefinitions: PackDefinition[] = [
   { id: 'bronze', name: 'Bronze Pack', price: 500, tier: 'Bronze', art: 'BRONZE', tagline: 'Academy talent', description: 'A reliable starting point: Bronze rookies with a real shot at a Silver upgrade.', odds: '75% Bronze · 24% Silver · 1% Gold', count: 3, bulk: true },
   { id: 'silver', name: 'Silver Pack', price: 800, tier: 'Silver', art: 'SILVER', tagline: 'Mid-table value', description: 'Three cards with a strong Silver base and a genuine Star chase.', odds: '30% Bronze · 55% Silver · 14% Gold · 1% Star', count: 3, badge: 'VALUE PICK', color: '#cbd5e1', soft: 'rgba(203,213,225,.14)', bulk: true },
-  { id: 'gold', name: 'Gold Pack', price: 1500, tier: 'Gold', art: 'GOLD', tagline: 'Established star', description: 'Tier-1 talent with a clean Silver floor and a shot at a walkout.', odds: '35% Silver · 58% Gold · 6% Star · 1% Icon', count: 3, badge: 'MOST POPULAR', bulk: true },
-  { id: 'major', name: 'Major Legend Pack', price: 15000, tier: 'Icon', art: 'MAJOR', tagline: 'Major legend', description: 'Only the biggest names from the biggest stage.', odds: '60% Gold · 37% Star · 3% Icon', count: 3 },
+  { id: 'gold', name: 'Gold Pack', price: 1500, tier: 'Gold', art: 'GOLD', tagline: 'Established star', description: 'Tier-1 talent with a clean Silver floor and a shot at a walkout.', odds: '33% Silver · 56% Gold · 6% Star · 2% Wonderkid · 2% TOTW · 1% Icon', count: 3, badge: 'MOST POPULAR', bulk: true },
+  { id: 'major', name: 'Major Legend Pack', price: 15000, tier: 'Icon', art: 'MAJOR', tagline: 'Major legend', description: 'Only the biggest names from the biggest stage.', odds: '55% Gold · 34% Star · 4% TOTW · 3% Major MVP · 4% Icon', count: 3 },
   { id: 'daily', name: 'Daily Free Pack', price: 0, tier: 'Gold', art: 'FREE', tagline: 'Every 24 hours', description: 'Two free cards daily, with Silver and better always possible.', odds: '70% Bronze · 25% Silver · 5% Gold', count: 2, badge: 'FREE DAILY', color: '#34d399', soft: 'rgba(52,211,153,.14)' },
   { id: 'awp', name: 'AWPer & Sniper Pack', price: 2200, tier: 'Star', art: 'AWP', tagline: 'Snipers only', description: 'Three dedicated AWPers. Chase m0NESY, ZywOo, sh1ro or broky.', odds: '25% Silver · 63% Gold · 10% Star · 2% Icon', count: 3, badge: 'ROLE GUARANTEE', color: '#22d3ee', soft: 'rgba(34,211,238,.14)' },
   { id: 'rifle', name: 'Rifler & Entry Pack', price: 2200, tier: 'Gold', art: 'RIFLE', tagline: 'Riflers & Entry', description: 'Three riflers or entry fraggers built to open every site.', odds: '25% Silver · 63% Gold · 10% Star · 2% Icon', count: 3, badge: 'ROLE GUARANTEE', color: '#f97316', soft: 'rgba(249,115,22,.14)' },
   { id: 'igl', name: 'IGL & Support Pack', price: 2200, tier: 'Star', art: 'IGL', tagline: 'In-game leaders', description: 'Three in-game leaders and support minds: bLitz, Aleksib, karrigan, apEX and more.', odds: '25% Silver · 63% Gold · 10% Star · 2% Icon', count: 3, badge: 'ROLE GUARANTEE', color: '#38bdf8', soft: 'rgba(56,189,248,.14)' },
   { id: 'asia', name: 'Asian & Regional Masters', price: 2000, tier: 'Star', art: 'ASIA', tagline: 'Chemistry boost', description: 'Weighted toward The MongolZ and regional talent for instant links.', odds: '25% Silver · 63% Gold · 10% Star · 2% Icon', count: 3, badge: 'REGIONAL', color: '#a78bfa', soft: 'rgba(167,139,250,.14)' },
+  { id: 'special', name: 'Wonderkid & TOTW Pack', price: 3500, tier: 'Wonderkid', art: 'SPECIAL', tagline: 'Special editions', description: 'Three cards weighted toward Special Editions: Wonderkids, TOTW standouts and Major MVPs.', odds: '42% Wonderkid · 30% TOTW · 6% Major MVP · 10% Gold · 8% Star · 4% Icon', count: 3, badge: 'SPECIAL EDITION', color: '#34f5c5', soft: 'rgba(52,245,197,.16)' },
 ];
 // Packs are shown cheapest first, so the free daily pack always leads the grid.
 const packCatalog: PackDefinition[] = [...packDefinitions].sort((left, right) => left.price - right.price);
 
 const pickCard = (pool: PlayerCard[]): PlayerCard => pool[Math.floor(Math.random() * pool.length)];
 const toPackCard = (card: PlayerCard): PackCard => ({ ...card, instanceId: `${randomId()}-${card.id}`, level: 1, revealed: false });
+/** Builds a Special Edition from a base database player, stamping its tier and edition boosts. */
+const specialCard = (tier: SpecialTier): PackCard => {
+  const pool = tier === 'Major MVP'
+    ? database.filter((card) => card.ovr >= 82)
+    : tier === 'TOTW'
+      ? database.filter((card) => card.ovr >= 76)
+      : database.filter((card) => card.ovr >= 55 && card.ovr <= 74);
+  const base = pickCard(pool.length ? pool : database);
+  const cap = (value: number): number => Math.min(99, Math.max(1, value));
+  if (tier === 'Major MVP') {
+    // Championship edition: +3 OVR above the base card and stronger all-round stats.
+    return toPackCard({ ...base, tier, ovr: cap(base.ovr + 3), aim: cap(base.aim + 3), rfl: cap(base.rfl + 2), sns: cap(base.sns + 2), clt: cap(base.clt + 3) });
+  }
+  if (tier === 'TOTW') {
+    // Weekly standout: boosted AIM and CLT on top of the base card.
+    return toPackCard({ ...base, tier, aim: cap(base.aim + 7), clt: cap(base.clt + 7), sns: cap(base.sns + 3) });
+  }
+  // Wonderkid: a young prodigy entering the card pool at 72-77 OVR.
+  const ovr = 72 + Math.floor(Math.random() * 6);
+  return toPackCard({ ...base, tier, ovr, aim: cap(ovr + 3), rfl: cap(ovr + 1), sns: cap(ovr + 2), clt: cap(ovr + 1) });
+};
 const randomTierCard = (tier: Tier): PackCard => {
+  if (isSpecialTier(tier)) return specialCard(tier);
   const options = database.filter((card) => card.tier === tier);
   return toPackCard(pickCard(options.length ? options : database));
 };
-const rankedTiers: Tier[] = ['Icon', 'Star', 'Gold', 'Silver', 'Bronze'];
+const rankedTiers: Tier[] = ['Major MVP', 'TOTW', 'Wonderkid', 'Icon', 'Star', 'Gold', 'Silver', 'Bronze'];
 const bestTierCard = (pool: PlayerCard[], tier: Tier): PackCard => {
+  if (isSpecialTier(tier)) return specialCard(tier);
   for (let index = Math.max(0, rankedTiers.indexOf(tier)); index < rankedTiers.length; index += 1) {
     const options = pool.filter((card) => card.tier === rankedTiers[index]);
     if (options.length) return toPackCard(pickCard(options));
@@ -1675,7 +1709,7 @@ function ChemistryLinks({ owned, squad }: { owned: OwnedCard[]; squad: Record<Ro
   const cardFor = (role: Role): OwnedCard | undefined => owned.find((card) => card.instanceId === squad[role]);
   const tone = (a?: OwnedCard, b?: OwnedCard): 'green' | 'yellow' | 'red' | 'empty' => {
     if (!a || !b) return 'empty';
-    if (isUniversalIcon(a) || isUniversalIcon(b) || a.team === b.team) return 'green';
+    if (isUniversalIcon(a) || isUniversalIcon(b) || a.tier === 'Major MVP' || b.tier === 'Major MVP' || a.team === b.team) return 'green';
     if (a.country && a.country === b.country) return 'yellow';
     const region = chemistryRegion(a.country);
     if (region && region === chemistryRegion(b.country)) return 'yellow';
@@ -1687,7 +1721,7 @@ function ChemistryLinks({ owned, squad }: { owned: OwnedCard[]; squad: Record<Ro
       const next = index < roles.length - 1 ? cardFor(roles[index + 1]) : undefined;
       const linkTone = index < roles.length - 1 ? tone(card, next) : 'empty';
       return <div className="chem-link-unit" key={role}>
-        <div className={`chem-node ${card ? `tier-${card.tier.toLowerCase()}` : 'empty'}`} style={card ? ({ '--chem-color': tierConfig[card.tier].color } as React.CSSProperties) : undefined}>
+        <div className={`chem-node ${card ? `tier-${tierSlug(card.tier)}` : 'empty'}`} style={card ? ({ '--chem-color': tierConfig[card.tier].color } as React.CSSProperties) : undefined}>
           <span>{roleLabel(role)}</span>
           <small>{card ? card.name.split(' ').slice(-1)[0] : 'EMPTY'}</small>
           {card && <CountryFlag code={card.country} />}
@@ -1700,9 +1734,10 @@ function ChemistryLinks({ owned, squad }: { owned: OwnedCard[]; squad: Record<Ro
 
 function chemistrySources(cards: OwnedCard[], perks: Perk[], tactChemBonus = 0): { key: string; label: string; points: number }[] {
   const icons = cards.map(isUniversalIcon);
-  const counts = { team: 0, country: 0, region: 0, icon: 0 };
+  const counts = { team: 0, country: 0, region: 0, icon: 0, mvp: 0 };
   cards.forEach((card, index) => {
     cards.slice(index + 1).forEach((other, offset) => {
+      if (card.tier === 'Major MVP' || other.tier === 'Major MVP') { counts.mvp += 16; return; }
       if (icons[index] || icons[index + 1 + offset]) { counts.icon += 5; return; }
       if (card.team === other.team) { counts.team += 8; return; }
       if (card.country === other.country) { counts.country += 6; return; }
@@ -1717,6 +1752,7 @@ function chemistrySources(cards: OwnedCard[], perks: Perk[], tactChemBonus = 0):
     { key: 'country', label: 'Same Nationality', points: counts.country },
     { key: 'region', label: 'Shared Region', points: counts.region },
     { key: 'icon', label: 'Icon Links', points: counts.icon },
+    { key: 'mvp', label: 'Major MVP ×2 Links', points: counts.mvp },
     { key: 'tactics', label: 'Tactical Genius', points: tactical },
   ].filter((row) => row.points > 0);
 }
@@ -1824,22 +1860,24 @@ function FutCard({ card, compact = false, onClick, locked = false, isNew = false
   const level = cardLevel(card.level);
   const xp = cardXp(card.xp);
   const maxed = level === CARD_MAX_LEVEL;
-  return <button className={`fut-card tier-${card.tier.toLowerCase()} ${compact ? 'compact' : ''} ${locked ? 'locked' : ''} ${!locked && power.ovr >= 99 ? 'maxed' : ''}`} onClick={onClick} style={{ '--tier-color': config.color, '--tier-soft': config.soft } as React.CSSProperties}>
+  const edition = isSpecialTier(card.tier) ? card.tier === 'Major MVP' ? 'MVP' : card.tier === 'TOTW' ? 'TOTW' : 'WK' : '';
+  return <button className={`fut-card tier-${tierSlug(card.tier)} ${compact ? 'compact' : ''} ${locked ? 'locked' : ''} ${!locked && power.ovr >= 99 ? 'maxed' : ''}`} onClick={onClick} style={{ '--tier-color': config.color, '--tier-soft': config.soft } as React.CSSProperties}>
     <span className="card-shield" aria-hidden="true" />
     <span className="card-shine" aria-hidden="true" />
     {isNew && <span className="new-card-badge">NEW</span>}
+    {edition && <span className={`card-edition-tag edition-${tierSlug(card.tier)}`}>{edition}</span>}
     <span className="card-body">
       <span className="card-top">
         <span className="card-ovr-block"><b className="card-ovr">{locked ? '?' : power.ovr}</b><i>OVR</i></span>
         <span className="card-role">{roleLabel(card.role)}</span>
-        <span className="card-rarity-icon">{card.tier === 'Icon' ? <Crown size={13} /> : card.tier === 'Star' ? <Star size={13} /> : <Medal size={13} />}</span>
+        <span className="card-rarity-icon">{card.tier === 'Major MVP' ? <Trophy size={13} /> : card.tier === 'TOTW' ? <Star size={13} /> : card.tier === 'Wonderkid' ? <Sparkles size={13} /> : card.tier === 'Icon' ? <Crown size={13} /> : card.tier === 'Star' ? <Star size={13} /> : <Medal size={13} />}</span>
       </span>
       <span className="card-portrait">
         {locked ? <LockKeyhole size={compact ? 25 : 34} /> : <>
           <span className="card-watermark" aria-hidden="true"><CountryFlag code={card.country} /></span>
           <PlayerSilhouette compact={compact} />
           <span className="country-flag" title={card.country}><CountryFlag code={card.country} /></span>
-          <span className="card-portrait-mark">{card.tier === 'Icon' ? <Crown size={compact ? 15 : 19} /> : <Shield size={compact ? 15 : 19} />}</span>
+          <span className="card-portrait-mark">{card.tier === 'Major MVP' ? <Trophy size={compact ? 15 : 19} /> : card.tier === 'TOTW' ? <Star size={compact ? 15 : 19} /> : card.tier === 'Wonderkid' ? <Sparkles size={compact ? 15 : 19} /> : card.tier === 'Icon' ? <Crown size={compact ? 15 : 19} /> : <Shield size={compact ? 15 : 19} />}</span>
         </>}
       </span>
       <span className="card-name">{locked ? 'UNOWNED' : card.name}</span>
@@ -1856,7 +1894,7 @@ type InspectCard = PlayerCard & { level?: number; xp?: number };
 const toInspectCard = (value: unknown): InspectCard | null => {
   if (!value || typeof value !== 'object') return null;
   const raw = value as Record<string, unknown>;
-  const tiers: Tier[] = ['Bronze', 'Silver', 'Gold', 'Star', 'Icon'];
+  const tiers: Tier[] = ['Bronze', 'Silver', 'Gold', 'Star', 'Icon', 'Wonderkid', 'TOTW', 'Major MVP'];
   const roles: Role[] = ['AWPer', 'Entry', 'IGL', 'Rifler', 'Lurker'];
   const num = (input: unknown, fallback: number): number => {
     const parsed = Math.round(Number(input));
@@ -1888,6 +1926,10 @@ function CardInspectModal({ card, onClose, action }: { card: InspectCard; onClos
   const xp = cardXp(card.xp);
   const maxed = level >= CARD_MAX_LEVEL;
   const region = chemistryRegion(card.country) || card.country || 'Unknown';
+  const editionNote = card.tier === 'Major MVP' ? '+3 OVR · 2× chemistry links on every pair'
+    : card.tier === 'TOTW' ? 'Team of the Week · +7 AIM and +7 CLT'
+      : card.tier === 'Wonderkid' ? 'Wonderkid · 72–77 OVR base · 2× match XP'
+        : '';
   const stats = [
     { key: 'aim', label: 'AIM', value: power.aim },
     { key: 'rfl', label: 'RFL', value: power.rfl },
@@ -1902,6 +1944,7 @@ function CardInspectModal({ card, onClose, action }: { card: InspectCard; onClos
         <div className="eyebrow orange">{card.tier.toUpperCase()} · {roleLabel(card.role)} · OVR {power.ovr}</div>
         <h2>{card.name}</h2>
         <div className="card-inspect-meta"><span><Shield size={12} /> {card.team || 'Free agent'}</span><span><Globe size={12} /> {region}</span></div>
+        {editionNote && <div className={`card-edition-perk tier-${tierSlug(card.tier)}`}>{editionNote}</div>}
         <div className="card-inspect-stats">{stats.map((stat) => <span key={stat.key}><small>{stat.label}</small><b>{stat.value}</b></span>)}</div>
         <div className="card-inspect-level">
           <div><span>LEVEL {level}{maxed ? ' · MAX' : ` / ${CARD_MAX_LEVEL}`}</span><b>{maxed ? 'MAX LEVEL' : `${xp} / ${CARD_XP_STEP} XP`}</b></div>
@@ -1990,7 +2033,7 @@ function PackProduct({ pack, price, discountPct, disabled, bulkDisabled, cooldow
   const accent = pack.color ?? config.color;
   const soft = pack.soft ?? config.soft;
   const isDaily = pack.id === 'daily';
-  const symbol = isDaily ? <Gift size={36} /> : pack.id === 'awp' ? <Crosshair size={36} /> : pack.id === 'rifle' ? <Swords size={36} /> : pack.id === 'igl' ? <Users size={36} /> : pack.id === 'asia' ? <Globe size={36} /> : pack.id === 'silver' ? <Shield size={36} /> : pack.tier === 'Bronze' ? <Medal size={36} /> : pack.tier === 'Gold' ? <Trophy size={36} /> : <Crown size={36} />;
+  const symbol = isDaily ? <Gift size={36} /> : pack.id === 'special' ? <Sparkles size={36} /> : pack.id === 'awp' ? <Crosshair size={36} /> : pack.id === 'rifle' ? <Swords size={36} /> : pack.id === 'igl' ? <Users size={36} /> : pack.id === 'asia' ? <Globe size={36} /> : pack.id === 'silver' ? <Shield size={36} /> : pack.tier === 'Bronze' ? <Medal size={36} /> : pack.tier === 'Gold' ? <Trophy size={36} /> : <Crown size={36} />;
   return <div className={`pack-product ${pack.badge === 'MOST POPULAR' ? 'featured' : ''} ${isDaily ? 'daily-pack' : ''}`} style={{ '--pack-color': accent, '--pack-soft': soft } as React.CSSProperties}>
     {pack.badge && <div className="featured-label">{pack.badge}</div>}
     <div className="pack-art"><div className="pack-glow" /><PackFoil pack={pack} icon={symbol} /><strong>{pack.art}</strong><span>PLAYER PACK · {pack.count} CARDS</span></div>
@@ -2020,7 +2063,7 @@ function ClubPage({ owned, squad, setSquad, newCardIds, badge, claimedClubs, onC
   const ownedIds = new Set(owned.map((card) => card.id));
   const completedClubs = CLUB_GROUPS.filter((club) => club.players.every((player) => ownedIds.has(player.id))).length;
   const copies = (card: OwnedCard): number => owned.filter((item) => item.id === card.id).length;
-  return <><PageTitle eyebrow="YOUR COLLECTION" title="My Club" subtitle={view === 'owned' ? `${owned.length} player cards collected across five tiers.` : view === 'teams' ? `Complete a real club's five-man roster to claim its badge and 5,000 coins.` : `Explore every player available in the ${database.length}-card database.`} action={<div className="club-tabs"><button className={view === 'owned' ? 'active' : ''} onClick={() => setView('owned')}>My Owned Cards <span>{owned.length}</span></button><button className={view === 'catalog' ? 'active' : ''} onClick={() => setView('catalog')}>All Players Catalog <span>{database.length}</span></button><button className={view === 'teams' ? 'active' : ''} onClick={() => setView('teams')}>Teams <span>{completedClubs}/{CLUB_GROUPS.length}</span></button></div>} />{view === 'owned' ? <><div className="club-toolbar"><div className="search-box"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search player..." /></div><Filter size={14} className="text-slate-500" /><div className="pill-row">{(['All', 'Icon', 'Star', 'Gold', 'Silver', 'Bronze'] as (Tier | 'All')[]).map((tier) => <button key={tier} className={`filter-pill ${tierFilter === tier ? 'active' : ''}`} onClick={() => setTierFilter(tier)}>{tier}<span>{tier === 'All' ? owned.length : owned.filter((card) => card.tier === tier).length}</span></button>)}</div><div className="pill-row">{(['All', ...roles] as (Role | 'All')[]).map((role) => <button key={role} className={`filter-pill ${roleFilter === role ? 'active' : ''}`} onClick={() => setRoleFilter(role)}>{role === 'Lurker' ? 'Support' : role}</button>)}</div></div>{filtered.length ? <div className="club-grid">{filtered.map((card) => <div className="club-item" key={card.instanceId}><FutCard card={card} isNew={newCardIds.includes(card.instanceId)} onClick={() => setInspect(card)} /><div className="club-actions"><button onClick={() => addToSquad(card)} className={Object.values(squad).includes(card.instanceId) ? 'active' : ''}>{Object.values(squad).includes(card.instanceId) ? <BadgeCheck size={14} /> : <Shield size={14} />} {Object.values(squad).includes(card.instanceId) ? 'In Squad' : 'Add to Squad'}</button>{copies(card) > 1 && cardLevel(card.level) < CARD_MAX_LEVEL && <button onClick={() => onUpgrade(card)} className="upgrade-button"><TrendingUp size={13} /> Upgrade (Lvl +1)<b>×{copies(card)}</b></button>}<button onClick={() => setSellTarget(card)} className="sell-button"><Coins size={13} /> Quick Sell +{tierConfig[card.tier].sell.toLocaleString()}</button></div></div>)}</div> : <div className="empty-club"><Box size={32} /><h3>No cards found</h3><p>Try another filter or open a pack to grow your club.</p></div>}</> : view === 'teams' ? <TeamsPanel owned={owned} badge={badge} claimedClubs={claimedClubs} onClaim={onClaimClub} onEquip={onEquipBadge} /> : <Catalog ownedIds={ownedIds} newCardIds={newCardIds} />}{sellTarget && <div className="league-overlay" onClick={() => setSellTarget(null)}><div className="confirm-modal" onClick={(event) => event.stopPropagation()}><div className="eyebrow orange">QUICK SELL</div><h3>Quick Sell {sellTarget.name}?</h3><p>{sellTarget.tier} · {sellTarget.role} · OVR {sellTarget.ovr}. This card leaves your club permanently.</p><strong className="confirm-value">+{tierConfig[sellTarget.tier].sell.toLocaleString()} Coins</strong><div className="confirm-actions"><button className="league-ghost" onClick={() => setSellTarget(null)}>Cancel</button><button className="primary-button" onClick={() => { onSell(sellTarget); setSellTarget(null); }}><Coins size={14} /> Quick Sell</button></div></div></div>}{inspect && <CardInspectModal card={inspect} onClose={() => setInspect(null)} action={{ label: Object.values(squad).includes(inspect.instanceId) ? 'In Squad' : 'Add to Squad', disabled: Object.values(squad).includes(inspect.instanceId), onClick: () => { addToSquad(inspect); setInspect(null); } }} />}</>;
+  return <><PageTitle eyebrow="YOUR COLLECTION" title="My Club" subtitle={view === 'owned' ? `${owned.length} player cards collected across every card tier.` : view === 'teams' ? `Complete a real club's five-man roster to claim its badge and 5,000 coins.` : `Explore every player available in the ${database.length}-card database.`} action={<div className="club-tabs"><button className={view === 'owned' ? 'active' : ''} onClick={() => setView('owned')}>My Owned Cards <span>{owned.length}</span></button><button className={view === 'catalog' ? 'active' : ''} onClick={() => setView('catalog')}>All Players Catalog <span>{database.length}</span></button><button className={view === 'teams' ? 'active' : ''} onClick={() => setView('teams')}>Teams <span>{completedClubs}/{CLUB_GROUPS.length}</span></button></div>} />{view === 'owned' ? <><div className="club-toolbar"><div className="search-box"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search player..." /></div><Filter size={14} className="text-slate-500" /><div className="pill-row">{(['All', 'Major MVP', 'TOTW', 'Wonderkid', 'Icon', 'Star', 'Gold', 'Silver', 'Bronze'] as (Tier | 'All')[]).map((tier) => <button key={tier} className={`filter-pill ${tierFilter === tier ? 'active' : ''}`} onClick={() => setTierFilter(tier)}>{tier}<span>{tier === 'All' ? owned.length : owned.filter((card) => card.tier === tier).length}</span></button>)}</div><div className="pill-row">{(['All', ...roles] as (Role | 'All')[]).map((role) => <button key={role} className={`filter-pill ${roleFilter === role ? 'active' : ''}`} onClick={() => setRoleFilter(role)}>{role === 'Lurker' ? 'Support' : role}</button>)}</div></div>{filtered.length ? <div className="club-grid">{filtered.map((card) => <div className="club-item" key={card.instanceId}><FutCard card={card} isNew={newCardIds.includes(card.instanceId)} onClick={() => setInspect(card)} /><div className="club-actions"><button onClick={() => addToSquad(card)} className={Object.values(squad).includes(card.instanceId) ? 'active' : ''}>{Object.values(squad).includes(card.instanceId) ? <BadgeCheck size={14} /> : <Shield size={14} />} {Object.values(squad).includes(card.instanceId) ? 'In Squad' : 'Add to Squad'}</button>{copies(card) > 1 && cardLevel(card.level) < CARD_MAX_LEVEL && <button onClick={() => onUpgrade(card)} className="upgrade-button"><TrendingUp size={13} /> Upgrade (Lvl +1)<b>×{copies(card)}</b></button>}<button onClick={() => setSellTarget(card)} className="sell-button"><Coins size={13} /> Quick Sell +{tierConfig[card.tier].sell.toLocaleString()}</button></div></div>)}</div> : <div className="empty-club"><Box size={32} /><h3>No cards found</h3><p>Try another filter or open a pack to grow your club.</p></div>}</> : view === 'teams' ? <TeamsPanel owned={owned} badge={badge} claimedClubs={claimedClubs} onClaim={onClaimClub} onEquip={onEquipBadge} /> : <Catalog ownedIds={ownedIds} newCardIds={newCardIds} />}{sellTarget && <div className="league-overlay" onClick={() => setSellTarget(null)}><div className="confirm-modal" onClick={(event) => event.stopPropagation()}><div className="eyebrow orange">QUICK SELL</div><h3>Quick Sell {sellTarget.name}?</h3><p>{sellTarget.tier} · {sellTarget.role} · OVR {sellTarget.ovr}. This card leaves your club permanently.</p><strong className="confirm-value">+{tierConfig[sellTarget.tier].sell.toLocaleString()} Coins</strong><div className="confirm-actions"><button className="league-ghost" onClick={() => setSellTarget(null)}>Cancel</button><button className="primary-button" onClick={() => { onSell(sellTarget); setSellTarget(null); }}><Coins size={14} /> Quick Sell</button></div></div></div>}{inspect && <CardInspectModal card={inspect} onClose={() => setInspect(null)} action={{ label: Object.values(squad).includes(inspect.instanceId) ? 'In Squad' : 'Add to Squad', disabled: Object.values(squad).includes(inspect.instanceId), onClick: () => { addToSquad(inspect); setInspect(null); } }} />}</>;
 }
 
 function Catalog({ ownedIds, newCardIds }: { ownedIds: Set<string>; newCardIds: string[] }) {
@@ -2184,7 +2227,7 @@ function MarketPage({ userId, coins, owned, squad, onList, onBuy, onCancel, onCl
         </div>
         <div className="market-filter-row">
           <div className="market-filter-group"><span>ROLE</span><div className="pill-row">{(['All', 'AWPer', 'IGL', 'Entry', 'Rifler', 'Support'] as const).map((role) => <button key={role} className={`filter-pill ${roleFilter === role ? 'active' : ''}`} onClick={() => setRoleFilter(role)}>{role}</button>)}</div></div>
-          <div className="market-filter-group"><span>RARITY</span><div className="pill-row">{(['All', 'Bronze', 'Silver', 'Gold', 'Star', 'Icon'] as const).map((tier) => <button key={tier} className={`filter-pill ${rarityFilter === tier ? 'active' : ''}`} onClick={() => setRarityFilter(tier)}>{tier}</button>)}</div></div>
+          <div className="market-filter-group"><span>RARITY</span><div className="pill-row">{(['All', 'Bronze', 'Silver', 'Gold', 'Star', 'Icon', 'Wonderkid', 'TOTW', 'Major MVP'] as const).map((tier) => <button key={tier} className={`filter-pill ${rarityFilter === tier ? 'active' : ''}`} onClick={() => setRarityFilter(tier)}>{tier}</button>)}</div></div>
           <div className="market-filter-group"><span>PRICE</span><div className="pill-row"><button className={`filter-pill ${priceSort === 'newest' ? 'active' : ''}`} onClick={() => setPriceSort('newest')}>Newest</button><button className={`filter-pill ${priceSort === 'price-low' ? 'active' : ''}`} onClick={() => setPriceSort('price-low')}>Price ↑</button><button className={`filter-pill ${priceSort === 'price-high' ? 'active' : ''}`} onClick={() => setPriceSort('price-high')}>Price ↓</button></div></div>
           <small className="market-result-count">{listed.length} listings · {bots.length} AI managed</small>
         </div>
@@ -2989,7 +3032,7 @@ function ProfilePage({ profile, setProfile, managerXp, trophies, career }: { pro
 function CreationModal({ onComplete }: { onComplete: (profile: Profile) => void }) { const [profile, setProfile] = useState<Profile>(createProfile); const complete = (): void => { const nickname = profile.nickname.trim() || 'Coach'; onComplete({ ...profile, nickname, teamName: profile.teamName.trim() || `${nickname} Esports` }); }; return <div className="creation-screen"><div className="creation-panel"><div className="creation-intro"><div className="ut-logo centered"><div className="ut-logo-icon"><Crosshair size={22} /></div><div><strong>CS2</strong><span>ULTIMATE TEAM</span></div></div><div className="eyebrow orange">WELCOME TO {seasonLabel(1).toUpperCase()}</div><h1>Build your legacy.</h1><p>Assemble a squad from the biggest names in Counter-Strike and take your club to the Major.</p><div className="intro-points"><span><Sparkles size={15} /> {database.length} real player cards</span><span><Trophy size={15} /> 5 card tiers</span><span><Coins size={15} /> 2,500 starter coins</span></div></div><div className="creation-form"><div className="eyebrow">MANAGER SETUP · 01</div><h2>Who is calling the shots?</h2><label className="creation-label"><span>Manager Nickname</span><input autoFocus value={profile.nickname} onChange={(event) => setProfile({ ...profile, nickname: event.target.value })} placeholder="Enter your nickname" maxLength={22} /></label><label className="creation-label"><span>Team Name</span><input value={profile.teamName} onChange={(event) => setProfile({ ...profile, teamName: event.target.value })} placeholder="Enter your club name" maxLength={22} /></label><div className="creation-label"><span>Choose your manager avatar</span><div className="avatar-picker creation-avatars">{(Object.keys(avatarDetails) as Avatar[]).map((avatar) => <button key={avatar} onClick={() => setProfile({ ...profile, avatar })} className={profile.avatar === avatar ? 'selected' : ''} style={{ '--avatar-color': avatarDetails[avatar].color } as React.CSSProperties}><span>{avatarDetails[avatar].icon}</span><small>{avatarDetails[avatar].label}</small></button>)}</div></div><div className="creation-label"><span>Select your team perk</span><div className="perk-picker creation-perks">{SLOT1_PERKS.map((perk) => <button key={perk} onClick={() => setProfile({ ...profile, perk })} className={profile.perk === perk ? 'selected' : ''}><span className="perk-icon">{perk === 'Tactical Genius' ? <Target size={16} /> : perk === 'Aim Coach' ? <Crosshair size={16} /> : <Search size={16} />}</span><span><strong>{perk}</strong><small>{perkDetails[perk]}</small></span></button>)}</div></div><button className="primary-button creation-submit" onClick={complete}>Create manager & open starter squad <ChevronRight size={16} /></button></div></div></div>; }
 
 function PackOverlay({ pack, onClose, onReveal, onRevealAll, onContinue }: { pack: PackCard[]; onClose: () => void; onReveal: (instanceId: string) => void; onRevealAll: () => void; onContinue: () => void }) {
-  const walkoutCard = pack.find((card) => card.tier === 'Icon') ?? pack.find((card) => card.tier === 'Star') ?? pack.find((card) => card.tier === 'Gold');
+  const walkoutCard = pack.find((card) => card.tier === 'Major MVP') ?? pack.find((card) => card.tier === 'TOTW') ?? pack.find((card) => card.tier === 'Wonderkid') ?? pack.find((card) => card.tier === 'Icon') ?? pack.find((card) => card.tier === 'Star') ?? pack.find((card) => card.tier === 'Gold');
   const [walkout, setWalkout] = useState(Boolean(walkoutCard));
   const [step, setStep] = useState(0);
   useEffect(() => {
@@ -2998,13 +3041,13 @@ function PackOverlay({ pack, onClose, onReveal, onRevealAll, onContinue }: { pac
     return () => window.clearTimeout(timer);
   }, [walkout, step]);
   if (walkout && walkoutCard && step < 4) {
-    return <div className="pack-overlay"><div className={`walkout tier-${walkoutCard.tier.toLowerCase()}`}>
+    return <div className="pack-overlay"><div className={`walkout tier-${tierSlug(walkoutCard.tier)}`}>
       <button className="walkout-skip" onClick={() => setWalkout(false)}>Skip <ChevronRight size={13} /></button>
       <div className="walkout-flash" key={step} />
-      <div className={`walkout-rays tier-${walkoutCard.tier.toLowerCase()}`} />
+      <div className={`walkout-rays tier-${tierSlug(walkoutCard.tier)}`} />
       <div className="walkout-tier">{walkoutCard.tier.toUpperCase()} WALKOUT</div>
       {step === 0 && <div className="walkout-flag"><CountryFlag code={walkoutCard.country} /></div>}
-      {step === 1 && <div className="walkout-role"><span className={`tier-emblem tier-${walkoutCard.tier.toLowerCase()}`}>{walkoutCard.tier === 'Icon' ? <Crown size={40} /> : walkoutCard.tier === 'Star' ? <Star size={40} /> : <Trophy size={40} />}</span>{roleLabel(walkoutCard.role)}</div>}
+      {step === 1 && <div className="walkout-role"><span className={`tier-emblem tier-${tierSlug(walkoutCard.tier)}`}>{walkoutCard.tier === 'Major MVP' ? <Trophy size={40} /> : walkoutCard.tier === 'TOTW' ? <Star size={40} /> : walkoutCard.tier === 'Wonderkid' ? <Sparkles size={40} /> : walkoutCard.tier === 'Icon' ? <Crown size={40} /> : walkoutCard.tier === 'Star' ? <Star size={40} /> : <Trophy size={40} />}</span>{roleLabel(walkoutCard.role)}</div>}
       {step === 2 && <div className="walkout-team">{walkoutCard.team}</div>}
       {step === 3 && <div className="walkout-card"><FutCard card={walkoutCard} isNew /></div>}
       <div className="walkout-progress">{[0, 1, 2, 3].map((index) => <i key={index} className={index <= step ? 'on' : ''} />)}</div>
@@ -3032,6 +3075,8 @@ function calculateChemistry(cards: OwnedCard[], perks: Perk[], tactChemBonus = 0
   let pairPoints = 0;
   cards.forEach((card, index) => {
     cards.slice(index + 1).forEach((other, offset) => {
+      // Major MVP editions double the strongest link regardless of team or region.
+      if (card.tier === 'Major MVP' || other.tier === 'Major MVP') { pairPoints += 16; return; }
       if (icons[index] || icons[index + 1 + offset]) { pairPoints += 5; return; }
       if (card.team === other.team) { pairPoints += 8; return; }
       if (card.country === other.country) { pairPoints += 6; return; }
