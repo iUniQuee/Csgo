@@ -1533,6 +1533,7 @@ function App() {
         {page === 'profile' && <ProfilePage profile={profile} setProfile={setProfile} managerXp={managerXp} trophies={league.trophies} career={career} />}
       </div>
     </main>
+    <MobileTabBar page={page} setPage={setPage} />
     {showCreation && <CreationModal onComplete={openCreation} />}
     {pack && <PackOverlay pack={pack} onClose={() => setPack(null)} onReveal={(instanceId) => setPack((current) => current?.map((card) => card.instanceId === instanceId ? { ...card, revealed: true } : card) ?? null)} onRevealAll={() => setPack((current) => current?.map((card) => ({ ...card, revealed: true })) ?? null)} onContinue={() => { setPack(null); setPage('club'); }} />}
     {toast && <div className="toast"><BadgeCheck size={17} /> {toast}</div>}
@@ -1557,6 +1558,18 @@ function Sidebar({ page, setPage, profile, league }: { page: Page; setPage: (pag
   return <aside className="ut-sidebar"><div className="ut-logo"><div className="ut-logo-icon"><Crosshair size={19} /></div><div><strong>CS2</strong><span>ULTIMATE TEAM</span></div></div><div className="manager-mini"><div className="avatar-circle" style={{ backgroundColor: avatarDetails[profile.avatar].color }}>{avatarDetails[profile.avatar].icon}</div><div><strong>{profile.nickname || 'New Manager'}</strong><span>{clubLabel(profile.teamName)}</span></div></div><div className="sidebar-label">MAIN MENU</div><nav>{items.map(({ id, label, icon: Icon, note }) => <button key={id} className={`ut-nav ${page === id ? 'active' : ''}`} onClick={() => setPage(id)}><Icon size={17} /><span>{label}</span><small>{note}</small></button>)}</nav><div className="sidebar-bottom"><div className="season-card"><Sparkles size={15} className="text-orange-400" /><div><strong>{seasonLabel(league.season)}</strong><span>Road to the Major</span></div></div><div className="season-timer"><small>ENDS IN</small><strong>{seasonCountdown(now)}</strong></div><div className="sidebar-version">ULTIMATE TEAM · 2026</div></div></aside>;
 }
 
+function MobileTabBar({ page, setPage }: { page: Page; setPage: (page: Page) => void }) {
+  const items: Array<{ id: Page; label: string; icon: typeof Users }> = [
+    { id: 'squad', label: 'Squad', icon: Users },
+    { id: 'club', label: 'Club', icon: LayoutGrid },
+    { id: 'store', label: 'Store', icon: Store },
+    { id: 'market', label: 'Market', icon: ArrowLeftRight },
+    { id: 'arena', label: 'Arena', icon: Swords },
+    { id: 'profile', label: 'Profile', icon: UserRound },
+  ];
+  return <nav className="mobile-tabbar" aria-label="Main navigation">{items.map(({ id, label, icon: Icon }) => <button key={id} type="button" className={page === id ? 'active' : ''} aria-current={page === id ? 'page' : undefined} onClick={() => setPage(id)}><Icon size={18} /><span>{label}</span></button>)}</nav>;
+}
+
 function Header({ profile, coins, cloud, onLogout }: { profile: Profile; coins: number; cloud: CloudSync; onLogout: () => void }) {
   const [muted, setMuted] = useState(isSoundMuted);
   useEffect(() => subscribeSoundMuted(setMuted), []);
@@ -1566,7 +1579,7 @@ function Header({ profile, coins, cloud, onLogout }: { profile: Profile; coins: 
     ? 'Local mode: add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to save and play online'
     : cloud === 'error' ? 'Cloud save failed. Check your Supabase keys and run the SQL script.'
       : cloud === 'idle' ? 'Syncing your club with Supabase...' : 'Club, squad and division seat saved to Supabase';
-  return <header className="ut-header"><div className="mobile-title">CS2 <span>ULTIMATE TEAM</span></div><div className="header-spacer" /><button className="sound-toggle" onClick={toggleMute} title={muted ? 'Sound off – click to unmute' : 'Sound on – click to mute'} aria-label={muted ? 'Unmute sound' : 'Mute sound'}>{muted ? <VolumeX size={16} /> : <Volume2 size={16} />}</button><div className={`cloud-state ${cloud}`} title={cloudHint}><i />{cloudLabel}</div><div className="header-manager"><div className="avatar-circle small" style={{ backgroundColor: avatarDetails[profile.avatar].color }}>{avatarDetails[profile.avatar].icon}</div><div className="header-manager-name"><span>MANAGER</span><strong>{profile.nickname || 'New Manager'}</strong></div></div><div className="header-team"><span>TEAM</span><strong>{profile.badge && <i className="club-badge" title={`${profile.badge} club badge`}>{clubMonogram(profile.badge)}</i>}{clubLabel(profile.teamName)}</strong></div><div className="coin-balance"><Coins size={16} /><div><span>COINS</span><strong>{coins.toLocaleString()}</strong></div></div><button className="logout-profile" onClick={onLogout}><LogOut size={14} /> Log Out</button></header>;
+  return <header className="ut-header"><div className="mobile-title">CS2 <span>UT</span></div><div className="header-spacer" /><button className="sound-toggle" onClick={toggleMute} title={muted ? 'Sound off – click to unmute' : 'Sound on – click to mute'} aria-label={muted ? 'Unmute sound' : 'Mute sound'}>{muted ? <VolumeX size={16} /> : <Volume2 size={16} />}</button><div className={`cloud-state ${cloud}`} title={cloudHint}><i />{cloudLabel}</div><div className="header-manager"><div className="avatar-circle small" style={{ backgroundColor: avatarDetails[profile.avatar].color }}>{avatarDetails[profile.avatar].icon}</div><div className="header-manager-name"><span>MANAGER</span><strong>{profile.nickname || 'New Manager'}</strong></div></div><div className="header-team"><span>TEAM</span><strong>{profile.badge && <i className="club-badge" title={`${profile.badge} club badge`}>{clubMonogram(profile.badge)}</i>}{clubLabel(profile.teamName)}</strong></div><div className="coin-balance"><Coins size={16} /><div><span>COINS</span><strong>{coins.toLocaleString()}</strong></div></div><button className="logout-profile" onClick={onLogout} aria-label="Log out"><LogOut size={14} /><span>Log Out</span></button></header>;
 }
 
 function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSession) => void }) {
