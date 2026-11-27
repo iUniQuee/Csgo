@@ -146,14 +146,30 @@ const withEconomy = (value: number, delta: number): number => Math.max(50, Math.
 type PackId = 'bronze' | 'silver' | 'gold' | 'major' | 'daily' | 'awp' | 'rifle' | 'asia' | 'igl';
 type DropRow = [Tier, number];
 type PackDefinition = { id: PackId; name: string; price: number; tier: Tier; art: string; tagline: string; description: string; odds: string; count: number; badge?: string; color?: string; soft?: string; bulk?: boolean };
-type CareerStats = { matches: number; wins: number; mapCounts: Record<string, number> };
-const createCareer = (): CareerStats => ({ matches: 0, wins: 0, mapCounts: {} });
+type MatchForm = { result: 'W' | 'L'; us: number; them: number; opponent: string };
+type CareerStats = { matches: number; wins: number; mapCounts: Record<string, number>; recent: MatchForm[] };
+const createCareer = (): CareerStats => ({ matches: 0, wins: 0, mapCounts: {}, recent: [] });
+const normalizeForm = (value: unknown): MatchForm[] => Array.isArray(value)
+  ? value
+      .filter((entry) => Boolean(entry) && typeof entry === 'object' && ((entry as MatchForm).result === 'W' || (entry as MatchForm).result === 'L'))
+      .map((entry) => {
+        const row = entry as MatchForm;
+        return {
+          result: row.result,
+          us: Math.max(0, Math.floor(Number(row.us) || 0)),
+          them: Math.max(0, Math.floor(Number(row.them) || 0)),
+          opponent: typeof row.opponent === 'string' && row.opponent.trim() ? row.opponent : 'Unknown club',
+        };
+      })
+      .slice(-5)
+  : [];
 const normalizeCareer = (value?: Partial<CareerStats>): CareerStats => ({
   matches: Math.max(0, Math.floor(Number(value?.matches) || 0)),
   wins: Math.max(0, Math.floor(Number(value?.wins) || 0)),
   mapCounts: value?.mapCounts && typeof value.mapCounts === 'object'
     ? Object.fromEntries(Object.entries(value.mapCounts).filter((entry): entry is [string, number] => typeof entry[1] === 'number' && Number.isFinite(entry[1])).map(([map, count]) => [map, Math.max(0, Math.floor(count))]))
     : {},
+  recent: normalizeForm(value?.recent),
 });
 type SaveData = { profile: Profile; coins: number; owned: OwnedCard[]; squad: Record<Role, string>; page: Page; newCardIds: string[]; managerXp: number; league?: LeagueState; dailyClaimAt?: number; rewardedLevel?: number; lastActiveAt?: number; quests?: QuestState; claimedClubs?: string[]; career?: CareerStats };
 type PackCard = OwnedCard & { revealed?: boolean };
@@ -939,7 +955,7 @@ function App() {
     const userRow = nextLeague.teams.find((team) => team.id === 'user');
     const nextCareer = data.career
       ? normalizeCareer(data.career)
-      : { matches: Math.max(0, userRow?.played ?? 0), wins: Math.max(0, userRow?.wins ?? 0), mapCounts: {} };
+      : { matches: Math.max(0, userRow?.played ?? 0), wins: Math.max(0, userRow?.wins ?? 0), mapCounts: {}, recent: [] };
     setProfile({
       ...data.profile,
       perk: SLOT1_PERKS.includes(data.profile.perk) ? data.profile.perk : 'Tactical Genius',
@@ -1250,11 +1266,12 @@ function App() {
     setCoins((value) => value + amount);
     setToast(`Match MVP bonus · +${amount} coins`);
   };
-  const recordCareerMatch = useCallback((won: boolean, map: RadarMapId): void => {
+  const recordCareerMatch = useCallback((won: boolean, map: RadarMapId, score: { us: number; them: number }, opponent: string): void => {
     setCareer((current) => ({
       matches: current.matches + 1,
       wins: current.wins + (won ? 1 : 0),
       mapCounts: { ...current.mapCounts, [map]: (current.mapCounts[map] ?? 0) + 1 },
+      recent: [...current.recent, { result: won ? 'W' as const : 'L' as const, us: score.us, them: score.them, opponent }].slice(-5),
     }));
   }, []);
   const updateSquad = (next: Record<Role, string>): void => { setSquad(next); };
@@ -1408,11 +1425,11 @@ function App() {
     <main className="ultimate-main">
       <Header profile={profile} coins={coins} cloud={cloudSync} onLogout={handleLogout} />
       <div className="ultimate-content">
-        {page === 'squad' && <SquadPage owned={owned} squad={squad} setSquad={updateSquad} teamRating={teamRating} chemistry={chemistry} profile={profile} onGoClub={() => setPage('club')} quests={quests} onClaimQuest={claimQuest} />}
+        {page === 'squad' && <SquadPage owned={owned} squad={squad} setSquad={updateSquad} teamRating={teamRating} chemistry={chemistry} perks={perks} tactChemBonus={perkValues.chemistry} profile={profile} onGoClub={() => setPage('club')} quests={quests} onClaimQuest={claimQuest} />}
         {page === 'store' && <StorePage coins={coins} level={level} dailyReadyAt={dailyReadyAt} iconPity={iconPity} onBuyPack={purchasePack} />}
         {page === 'club' && <ClubPage owned={owned} squad={squad} setSquad={updateSquad} newCardIds={newCardIds} badge={profile.badge} claimedClubs={claimedClubs} onClaimClub={claimClubMilestone} onEquipBadge={equipClubBadge} onSell={quickSell} onUpgrade={upgradeCard} />}
         {page === 'market' && <MarketPage userId={cloudUserId} coins={coins} owned={owned} squad={squad} onList={listOnMarket} onBuy={buyMarketCard} onCancel={cancelMarketListing} onClaim={claimMarketSale} />}
-        {page === 'arena' && <ArenaPage userId={cloudUserId} teamRating={teamRating} chemistry={chemistry} perks={perks} teamName={profile.teamName} emblem={profile.emblem} accent={profile.accent} league={league} setLeague={applyLeague} onWin={awardArenaWin} onMvpBonus={awardMvpBonus} squad={squadDuelists} ecosystem={ecosystem.teams} quests={quests} onClaimQuest={claimQuest} scrimWins={quests.day === dayKeyOf(Date.now()) ? quests.scrimWins : 0} onScrimmage={resolveScrimmage} onCareerMatch={recordCareerMatch} liveSlotRef={liveSlotRef} />}
+        {page === 'arena' && <ArenaPage userId={cloudUserId} teamRating={teamRating} chemistry={chemistry} perks={perks} teamName={profile.teamName} emblem={profile.emblem} accent={profile.accent} league={league} setLeague={applyLeague} onWin={awardArenaWin} onMvpBonus={awardMvpBonus} squad={squadDuelists} ecosystem={ecosystem.teams} quests={quests} onClaimQuest={claimQuest} scrimWins={quests.day === dayKeyOf(Date.now()) ? quests.scrimWins : 0} onScrimmage={resolveScrimmage} onCareerMatch={recordCareerMatch} recentForm={career.recent} liveSlotRef={liveSlotRef} />}
         {page === 'profile' && <ProfilePage profile={profile} setProfile={setProfile} managerXp={managerXp} trophies={league.trophies} career={career} />}
       </div>
     </main>
@@ -1552,7 +1569,73 @@ function ChemistryLinks({ owned, squad }: { owned: OwnedCard[]; squad: Record<Ro
   </div>;
 }
 
-function SquadPage({ owned, squad, setSquad, teamRating, chemistry, profile, onGoClub, quests, onClaimQuest }: { owned: OwnedCard[]; squad: Record<Role, string>; setSquad: (squad: Record<Role, string>) => void; teamRating: number; chemistry: number; profile: Profile; onGoClub: () => void; quests: QuestState; onClaimQuest: (id: QuestId) => void }) {
+function chemistrySources(cards: OwnedCard[], perks: Perk[], tactChemBonus = 0): { key: string; label: string; points: number }[] {
+  const icons = cards.map(isUniversalIcon);
+  const counts = { team: 0, country: 0, region: 0, icon: 0 };
+  cards.forEach((card, index) => {
+    cards.slice(index + 1).forEach((other, offset) => {
+      if (icons[index] || icons[index + 1 + offset]) { counts.icon += 5; return; }
+      if (card.team === other.team) { counts.team += 8; return; }
+      if (card.country === other.country) { counts.country += 6; return; }
+      const region = chemistryRegion(card.country);
+      if (region && region === chemistryRegion(other.country)) counts.region += 3;
+    });
+  });
+  const tactical = perks.includes('Tactical Genius') ? Math.max(3, tactChemBonus) : tactChemBonus;
+  return [
+    { key: 'roles', label: 'Balanced Roles', points: (cards.length / 5) * 48 },
+    { key: 'team', label: 'Same Pro Team', points: counts.team },
+    { key: 'country', label: 'Same Nationality', points: counts.country },
+    { key: 'region', label: 'Shared Region', points: counts.region },
+    { key: 'icon', label: 'Icon Links', points: counts.icon },
+    { key: 'tactics', label: 'Tactical Genius', points: tactical },
+  ].filter((row) => row.points > 0);
+}
+
+function TeamChemistryBar({ cards, perks, chemistry, tactChemBonus = 0 }: { cards: OwnedCard[]; perks: Perk[]; chemistry: number; tactChemBonus?: number }) {
+  const sources = chemistrySources(cards, perks, tactChemBonus);
+  const rawTotal = sources.reduce((sum, row) => sum + row.points, 0);
+  const rows = sources.map((row) => ({ ...row, pct: rawTotal > 0 ? Math.round((row.points / rawTotal) * chemistry) : 0 }));
+  const drift = chemistry - rows.reduce((sum, row) => sum + row.pct, 0);
+  if (rows.length && drift !== 0) {
+    const biggest = rows.reduce((best, row, index) => (row.pct > rows[best].pct ? index : best), 0);
+    rows[biggest] = { ...rows[biggest], pct: Math.max(0, rows[biggest].pct + drift) };
+  }
+  const ovrBonus = Math.round(chemistry / 25);
+  const aimPct = chemistry > 0 ? Math.ceil(chemistry / 20) : 0;
+  return <div className="chem-breakdown">
+    <div className="chem-breakdown-head">
+      <div><div className="eyebrow orange">TEAM CHEMISTRY</div><h3>{chemistry}<small>/100</small></h3></div>
+      <div className="chem-breakdown-bonus"><span className={ovrBonus ? 'on' : ''}>+{ovrBonus} OVR</span><span className={aimPct ? 'on' : ''}>+{aimPct}% AIM</span></div>
+    </div>
+    <div className="chem-breakdown-bar" role="img" aria-label={`Team chemistry ${chemistry} of 100`}>
+      {rows.map((row) => <i key={row.key} className={`chem-seg ${row.key}`} style={{ width: `${row.pct}%` }} />)}
+    </div>
+    {rows.length
+      ? <div className="chem-breakdown-list">{rows.map((row) => <span key={row.key} className={`chem-chip ${row.key}`}><i />{row.label}<b>+{row.pct}%</b></span>)}</div>
+      : <p className="chem-breakdown-empty">Add players to your lineup to start earning chemistry bonuses.</p>}
+    <p className="chem-breakdown-note">Segments show how much of the 100-point chemistry meter each link covers · every 25 chemistry ≈ +1 Team OVR.</p>
+  </div>;
+}
+
+function RecentForm({ entries }: { entries: MatchForm[] }) {
+  const recent = entries.slice(-5);
+  const wins = recent.filter((entry) => entry.result === 'W').length;
+  const slots = [...recent, ...Array.from({ length: Math.max(0, 5 - recent.length) }, () => null)];
+  return <div className="recent-form">
+    <div className="recent-form-head">
+      <div><div className="eyebrow orange">RECENT FORM · LAST 5</div><strong>{recent.length ? `${wins}W–${recent.length - wins}L` : 'No matches yet'}</strong></div>
+      <small>League & scrimmage results</small>
+    </div>
+    <div className="recent-form-strip">
+      {slots.map((entry, index) => entry
+        ? <span key={`${entry.opponent}-${index}`} className={`form-pill ${entry.result === 'W' ? 'win' : 'loss'}`} title={`vs ${entry.opponent}`}><b>{entry.result}</b><small>{entry.us}–{entry.them}</small></span>
+        : <span key={`pending-${index}`} className="form-pill pending" aria-hidden="true">—</span>)}
+    </div>
+  </div>;
+}
+
+function SquadPage({ owned, squad, setSquad, teamRating, chemistry, perks, tactChemBonus, profile, onGoClub, quests, onClaimQuest }: { owned: OwnedCard[]; squad: Record<Role, string>; setSquad: (squad: Record<Role, string>) => void; teamRating: number; chemistry: number; perks: Perk[]; tactChemBonus: number; profile: Profile; onGoClub: () => void; quests: QuestState; onClaimQuest: (id: QuestId) => void }) {
   const chemAimPct = chemistry > 0 ? Math.ceil(chemistry / 20) : 0;
   return <>
     <PageTitle eyebrow="MY CLUB / ACTIVE LINEUP" title="My Squad" subtitle={clubLabel(profile.teamName)} action={<button className="outline-button" onClick={onGoClub}><Grid2X2 size={15} /> Browse Club</button>} />
@@ -1572,8 +1655,8 @@ function SquadPage({ owned, squad, setSquad, teamRating, chemistry, profile, onG
     <DailyQuestsPanel quests={quests} onClaim={onClaimQuest} compact />
     <div className="section-row">
       <div><div className="eyebrow">STARTING FIVE</div><h3>Active Lineup • 5 Roles</h3></div>
-      <div className="chem-meter"><span>CHEMISTRY {chemistry}/100 · +{chemAimPct}% AIM</span><div><i style={{ width: `${chemistry}%` }} /></div></div>
     </div>
+    <TeamChemistryBar cards={roles.map((role) => owned.find((card) => card.instanceId === squad[role])).filter((card): card is OwnedCard => Boolean(card))} perks={perks} chemistry={chemistry} tactChemBonus={tactChemBonus} />
     <div className="chem-legend"><span className="chem-key team"><i />SAME PRO TEAM</span><span className="chem-key country"><i />SAME COUNTRY</span><span className="chem-key region"><i />SAME REGION</span><span className="chem-key icon"><i />ICON 90+ UNIVERSAL</span></div>
     <ChemistryLinks owned={owned} squad={squad} />
     <div className="squad-grid">{roles.map((role) => <SquadSlot key={role} role={role} card={owned.find((item) => item.instanceId === squad[role])} onGoClub={onGoClub} onRemove={() => setSquad({ ...squad, [role]: '' })} />)}</div>
@@ -1926,7 +2009,7 @@ function LeagueStandingsMini({ teams, divisionName, zone, teamName, emblem, acce
   </div>;
 }
 
-function ArenaPage({ userId, teamRating, chemistry, perks, league, setLeague, onWin, onMvpBonus, squad, quests, onClaimQuest, scrimWins, onScrimmage, onCareerMatch, ecosystem, teamName, emblem, accent, liveSlotRef }: { teamRating: number; chemistry: number; perks: Perk[]; teamName: string; emblem?: EmblemId; accent?: string; league: LeagueState; setLeague: (next: LeagueState) => void; onWin: (reward: number, xp: number, message?: string) => void; onMvpBonus: (amount: number) => void; squad: Duelist[]; quests: QuestState; onClaimQuest: (id: QuestId) => void; scrimWins: number; onScrimmage: (won: boolean) => void; onCareerMatch: (won: boolean, map: RadarMapId) => void; ecosystem: EcoTeam[]; userId: string | null; liveSlotRef: { current: number | null } }) {
+function ArenaPage({ userId, teamRating, chemistry, perks, league, setLeague, onWin, onMvpBonus, squad, quests, onClaimQuest, scrimWins, onScrimmage, onCareerMatch, recentForm, ecosystem, teamName, emblem, accent, liveSlotRef }: { teamRating: number; chemistry: number; perks: Perk[]; teamName: string; emblem?: EmblemId; accent?: string; league: LeagueState; setLeague: (next: LeagueState) => void; onWin: (reward: number, xp: number, message?: string) => void; onMvpBonus: (amount: number) => void; squad: Duelist[]; quests: QuestState; onClaimQuest: (id: QuestId) => void; scrimWins: number; onScrimmage: (won: boolean) => void; onCareerMatch: (won: boolean, map: RadarMapId, score: { us: number; them: number }, opponent: string) => void; recentForm: MatchForm[]; ecosystem: EcoTeam[]; userId: string | null; liveSlotRef: { current: number | null } }) {
   const [mode, setMode] = useState<'quick' | 'league'>('league');
   const [opponentId, setOpponentId] = useState('tier2');
   const [live, setLive] = useState(false);
@@ -2039,7 +2122,7 @@ function ArenaPage({ userId, teamRating, chemistry, perks, league, setLeague, on
     if (settledRef.current) return;
     settledRef.current = true;
     setLive(false); setResult(won ? 'win' : 'loss');
-    onCareerMatch(won, radarMap);
+    onCareerMatch(won, radarMap, finalScore, opponent.name);
     const board = buildScoreboard(squad, { name: opponent.name, ovr: opponent.ovr }, finalScore);
     setScoreboard(board);
     if (board.mvp.team === 'us') onMvpBonus(board.bonus);
@@ -2119,7 +2202,7 @@ function ArenaPage({ userId, teamRating, chemistry, perks, league, setLeague, on
     }
     setChallengeSeries({ opponent, rounds, us, them });
     onScrimmage(us > them);
-    onCareerMatch(us > them, radarMap);
+    onCareerMatch(us > them, radarMap, { us, them }, opponent.clubName);
     if (us > them) playSound('win');
   };
   const closeChallenge = (): void => { setChallengeOpen(false); setChallengeSeries(null); setChallengeResults(null); setChallengeTerm(''); };
@@ -2158,6 +2241,7 @@ function ArenaPage({ userId, teamRating, chemistry, perks, league, setLeague, on
     {questPanel}
     {mode === 'quick' ? <div className="arena-lobby"><div className="arena-lobby-art"><div className="arena-radar"><div className="radar-ring one" /><div className="radar-ring two" /><div className="radar-cross" /><div className="arena-dot one" /><div className="arena-dot two" /><div className="arena-dot three" /></div><div className="arena-lobby-emblem"><Swords size={34} /></div></div><div className="arena-lobby-copy"><div className="eyebrow orange">ARENA MATCHMAKING</div><h2>Choose your opponent.</h2><p>Your active five, chemistry, and manager perks influence every round. Win the BO1 to collect the listed coin reward.</p><div className="arena-stat-line"><span><small>TEAM OVR</small><strong>{teamRating || '--'}</strong></span><span><small>CHEMISTRY</small><strong>{chemistry}</strong></span><span><small>XP ON WIN</small><strong>+{100 + quickOpponent.reward / 10}</strong></span></div><div className="opponent-list">{quickOpponents.map((item) => <button key={item.id} className={`opponent-option ${opponentId === item.id ? 'selected' : ''}`} onClick={() => setOpponentId(item.id)}><span className={`opponent-tier ${item.color}`}>{item.ovr}</span><span><strong>{item.name}</strong><small>{item.ovr} OVR AI opponent</small></span><b><Coins size={13} /> +{item.reward.toLocaleString()}</b></button>)}</div><button className="primary-button arena-start" onClick={() => beginMatch('quick')}><Play size={16} fill="currentColor" /> START MATCH</button><button className="league-ghost arena-scrim" onClick={() => beginMatch('scrim')}><Swords size={15} /> Play Scrimmage (Friendly) <span>{scrimWins}/{SCRIM_WIN_CAP} paid wins</span></button><button className="league-ghost arena-scrim" onClick={openChallenge}><Users size={15} /> Challenge Friend <span>Real club · Bo3</span></button></div></div>
     : <div className="league-shell"><div className="league-hero"><div className="league-rank-badge"><Crown size={20} /><strong>{league.division + 1}</strong><span>DIVISION</span></div><div className="league-hero-copy"><div className="eyebrow orange">DIVISION {league.division + 1} OF 15 · {zoneLabel(zoneIndex).toUpperCase()} · {seasonLabel(league.season).toUpperCase()} · ENDS IN {seasonCountdown(Date.now()).toUpperCase()}</div><div className="zone-badges"><span className="zone-badge">DIV {league.division + 1} • {zoneLabel(zoneIndex).toUpperCase()}</span>{zoneCount > 1 && <span className="zone-badge soft">{zoneCount} ZONES</span>}<span className="zone-badge soft">{humanCount} REAL MANAGERS · {ZONE_SIZE - humanCount} BOTS</span></div><h2>{division.name}</h2><p>16-team room · 24 hourly matches per day · Opponent OVR {division.ovrMin}–{division.ovrMax}{league.division === divisions.length - 1 ? ' · Top 16 World Elite' : ''}</p><div className="league-zone-legend"><span className="promotion">Promote 1–{promoteCount} after all {SLOTS_PER_DAY} matches</span>{league.division > 0 && <span className="relegation">Relegate 14–16 when the table closes</span>}<span><Coins size={12} /> +{LEAGUE_WIN_COINS} win / +{LEAGUE_LOSS_COINS} loss</span></div></div><div className="league-progress"><span>TODAY</span><strong>{Math.min(slot, SLOTS_PER_DAY)} / {SLOTS_PER_DAY}</strong><div className="league-progress-bar"><i style={{ width: `${Math.round((Math.min(slot, SLOTS_PER_DAY) / SLOTS_PER_DAY) * 100)}%` }} /></div><small>{leagueOpponentTeam ? `Next: ${leagueOpponentTeam.name} · ${leagueOpponentTeam.ovr} OVR` : 'Next opponent loading'}</small></div></div>
+      <RecentForm entries={recentForm} />
       <div className="match-clock-card"><div className="match-clock-copy"><div className="eyebrow orange">{liveReady ? 'LIVE BROADCAST WINDOW' : 'HOURLY LEAGUE SCHEDULE'}</div><strong>{liveReady ? 'League match is LIVE now — 2D tactical broadcast, 1x speed only.' : `Next League Match starts at ${slotClockLabel(nextHour)} (in ${countdown})`}</strong><small>{liveReady ? 'Stay on this page to watch the tactical map in real time.' : 'Matches simulate automatically at every :30 — even while you are offline.'}</small></div><div className="match-clock-right"><span className={`clock-big ${liveReady ? 'is-live' : ''}`}>{liveReady ? 'LIVE' : countdown}</span><small>{liveReady ? `Window closes ${String(liveHour ?? 0).padStart(2, '0')}:35` : `Kick-off ${slotClockLabel(nextHour)}`}</small></div></div>
       <div className="league-actions"><button className="primary-button" onClick={() => beginMatch('scrim')}><Swords size={16} /> Play Scrimmage (Friendly)</button><button className="league-ghost" onClick={openChallenge}><Users size={15} /> Challenge Friend</button><button className="league-ghost" onClick={() => setShowRoadmap(true)}><LayoutGrid size={15} /> View League Roadmap</button><button className="league-ghost" onClick={() => setShowTopClubs(true)}><Globe size={15} /> Global Top Clubs</button><span className="league-prize"><Trophy size={13} /> Friendly wins +{SCRIM_WIN_COINS} · {scrimWins}/{SCRIM_WIN_CAP} paid wins today</span></div><div className={`league-season-progress ${ourRank <= promoteCount ? 'in-zone' : ''}`}><div className="season-progress-main"><span className="eyebrow orange">SEASON PROGRESS</span><strong>Matches Played: {Math.min(slot, SLOTS_PER_DAY)} / {SLOTS_PER_DAY}</strong><small>{atTopDivision ? (ourRank <= promoteCount ? `In the promotion zone · finish Top ${promoteCount} when all ${SLOTS_PER_DAY} matches are played to defend the top division.` : `${SLOTS_PER_DAY - slot} matches left · climb into the Top ${promoteCount} before match ${SLOTS_PER_DAY} to defend your seat.`) : ourRank <= promoteCount ? `In the promotion zone · finish Top ${promoteCount} when all ${SLOTS_PER_DAY} matches are played to move up to ${divisions[league.division + 1].name}.` : `${SLOTS_PER_DAY - slot} matches left · you must climb into the Top ${promoteCount} before match ${SLOTS_PER_DAY} to be promoted.`}</small></div><div className="season-progress-metrics"><div><small>PROMOTION ZONE</small><strong>TOP {promoteCount}</strong></div><div><small>YOUR POSITION</small><strong>#{ourRank}</strong></div><div><small>DIVISION PRIZE</small><strong><Coins size={12} /> {division.reward.toLocaleString()}</strong></div></div><div className="league-progress-bar season"><i style={{ width: `${Math.round((Math.min(slot, SLOTS_PER_DAY) / SLOTS_PER_DAY) * 100)}%` }} /></div></div><div className="standings-head"><div><div className="eyebrow orange">LEAGUE STANDINGS · 16 TEAMS</div><h3>{division.name} · {zoneLabel(zoneIndex)}</h3></div><span>Rank · Team · W/L · Round Diff · Points</span></div><div className="league-table standings-table"><div className="league-table-head"><span>#</span><span>TEAM</span><span>W/L</span><span>RD</span><span>PTS</span></div>{sortedTeams.map((team, index) => { const rank = index + 1; const tierZone = rank <= promoteCount ? 'promotion' : league.division > 0 && rank >= 14 ? 'relegation' : ''; const isHuman = teamKind(team) !== 'bot'; const avatar = isHuman ? avatarDetails[(team.avatar ?? 'ghost') as Avatar] ?? avatarDetails.ghost : null; return <div key={team.id} className={`league-row ${tierZone} ${team.id === 'user' ? 'is-user' : ''} ${isHuman ? 'is-human' : 'is-bot'}`}><span className="league-rank">{rank}</span><span className="league-club">{team.id === 'user' ? <><TeamEmblem emblem={emblem} accent={accent} size={16} /><b>{clubLabel(teamName)}</b></> : <button className="team-link" onClick={() => isHuman ? setManagerTeam(team) : setScoutTeam(ecoTeamById(ecosystem, ecoIdOf(team)) ?? null)}>{team.name}</button>}<em className={`seat-badge ${isHuman ? 'player' : 'bot'}`}>{isHuman ? 'PLAYER' : 'BOT'}</em>{team.id === 'user' && <i>YOU</i>}<small className="seat-meta">{isHuman ? <><span className="seat-avatar" style={{ color: avatar?.color }}>{avatar?.icon}</span>{team.manager ?? 'MANAGER'} · OVR {team.ovr}</> : `AI PRO TEAM · OVR ${team.ovr || teamRating}`}</small></span><span>{team.wins}/{team.losses}</span><span>{team.roundDiff > 0 ? `+${team.roundDiff}` : team.roundDiff}</span><strong>{team.points}</strong></div>; })}</div></div>}
     {roadmap}

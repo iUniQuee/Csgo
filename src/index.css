@@ -1762,3 +1762,42 @@
 /* ==== Sound toggle in the top bar ==== */
 .sound-toggle { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 9px; border: 1px solid #1f2a3a; background: #0b1220; color: #94a3b8; cursor: pointer; transition: color .15s, border-color .15s; }
 .sound-toggle:hover { color: #f97316; border-color: #f97316; }
+
+/* ==== Team chemistry breakdown above the lineup ==== */
+.chem-breakdown { margin-top: .9rem; border: 1px solid #1f2a3a; border-radius: .85rem; background: linear-gradient(135deg, #141d2b, #0d1522); padding: 1rem 1.1rem; }
+.chem-breakdown-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.chem-breakdown-head h3 { margin: .15rem 0 0; font-size: 1.6rem; font-weight: 800; line-height: 1; color: #f8fafc; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.chem-breakdown-head h3 small { margin-left: .15rem; font-size: .8rem; font-weight: 700; color: #64748b; }
+.chem-breakdown-bonus { display: flex; gap: .4rem; }
+.chem-breakdown-bonus span { border: 1px solid #1f2a3a; border-radius: 999px; padding: .22rem .5rem; font-size: 9px; font-weight: 800; letter-spacing: .08em; color: #64748b; }
+.chem-breakdown-bonus span.on { border-color: rgba(52, 211, 153, .35); background: rgba(52, 211, 153, .1); color: #6ee7b7; }
+.chem-breakdown-bar { display: flex; gap: 2px; height: 10px; margin-top: .75rem; overflow: hidden; border-radius: 999px; background: #1e293b; }
+.chem-breakdown-bar i { display: block; height: 100%; transition: width .35s ease; }
+.chem-seg.roles, .chem-chip.roles i { background: #64748b; }
+.chem-seg.team, .chem-chip.team i { background: #34d399; }
+.chem-seg.country, .chem-chip.country i { background: #38bdf8; }
+.chem-seg.region, .chem-chip.region i { background: #fbbf24; }
+.chem-seg.icon, .chem-chip.icon i { background: #c084fc; }
+.chem-seg.tactics, .chem-chip.tactics i { background: #fb923c; }
+.chem-breakdown-list { display: flex; flex-wrap: wrap; gap: .4rem .85rem; margin-top: .7rem; }
+.chem-chip { display: inline-flex; align-items: center; gap: .35rem; font-size: 10px; font-weight: 700; letter-spacing: .04em; color: #94a3b8; }
+.chem-chip i { width: 8px; height: 8px; border-radius: 2px; }
+.chem-chip b { color: #e2e8f0; font-weight: 800; font-variant-numeric: tabular-nums; }
+.chem-breakdown-note { margin: .55rem 0 0; font-size: 9px; letter-spacing: .03em; color: #526078; }
+.chem-breakdown-empty { margin: .6rem 0 0; font-size: 11px; color: #64748b; }
+
+/* ==== Recent form strip on the league overview ==== */
+.recent-form { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-top: 1rem; border: 1px solid #1f2a3a; border-radius: .85rem; background: #0e1725; padding: .7rem 1rem; }
+.recent-form-head { display: flex; align-items: center; gap: .85rem; }
+.recent-form-head strong { display: block; margin-top: .2rem; font-size: .85rem; font-weight: 800; color: #f8fafc; }
+.recent-form-head small { font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #526078; }
+.recent-form-strip { display: flex; gap: .4rem; }
+.form-pill { display: inline-flex; align-items: center; justify-content: center; gap: .3rem; min-width: 64px; border: 1px solid #263244; border-radius: .5rem; background: #141d2b; padding: .28rem .5rem; font-variant-numeric: tabular-nums; }
+.form-pill b { font-size: 11px; font-weight: 900; }
+.form-pill small { font-size: 10px; font-weight: 700; color: #cbd5e1; }
+.form-pill.win { border-color: rgba(52, 211, 153, .4); background: rgba(52, 211, 153, .12); }
+.form-pill.win b { color: #34d399; }
+.form-pill.loss { border-color: rgba(251, 113, 133, .4); background: rgba(251, 113, 133, .1); }
+.form-pill.loss b { color: #fb7185; }
+.form-pill.pending { min-width: 64px; border-style: dashed; border-color: #263244; background: transparent; color: #334155; }
+@media (max-width: 640px) { .recent-form, .recent-form-head { flex-direction: column; align-items: flex-start; } }
