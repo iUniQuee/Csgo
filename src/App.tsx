@@ -68,6 +68,7 @@ import {
   Swords,
   Tag,
   Target,
+  Timer,
   TrendingUp,
   Trophy,
   Zap,
@@ -1014,6 +1015,7 @@ function App() {
   const [managerXp, setManagerXp] = useState(0);
   const [league, setLeague] = useState<LeagueState>(() => createSeason(0, 1, []));
   const [toast, setToast] = useState('');
+  const [questsOpen, setQuestsOpen] = useState(false);
   const [dailyClaimAt, setDailyClaimAt] = useState(0);
   const [iconPity, setIconPity] = useState(readIconPity);
   const [rewardedLevel, setRewardedLevel] = useState(1);
@@ -1637,18 +1639,19 @@ function App() {
   return <div spellCheck={false} className="ultimate-app min-h-screen bg-[#0f172a] text-slate-200">
     <Sidebar page={page} setPage={setPage} profile={profile} league={league} />
     <main className="ultimate-main">
-      <Header profile={profile} coins={coins} cloud={cloudSync} onLogout={handleLogout} />
+      <Header profile={profile} coins={coins} cloud={cloudSync} quests={quests} onOpenQuests={() => setQuestsOpen(true)} onLogout={handleLogout} />
       <div className="ultimate-content">
-        {page === 'squad' && <SquadPage owned={owned} squad={squad} setSquad={updateSquad} teamRating={teamRating} chemistry={chemistry} perks={perks} tactChemBonus={perkValues.chemistry} profile={profile} onGoClub={() => setPage('club')} quests={quests} onClaimQuest={claimQuest} rosterSync={rosterSync} />}
+        {page === 'squad' && <SquadPage owned={owned} squad={squad} setSquad={updateSquad} teamRating={teamRating} chemistry={chemistry} perks={perks} tactChemBonus={perkValues.chemistry} profile={profile} onGoClub={() => setPage('club')} rosterSync={rosterSync} />}
         {page === 'store' && <StorePage coins={coins} level={level} dailyReadyAt={dailyReadyAt} iconPity={iconPity} onBuyPack={purchasePack} rosterSync={rosterSync} />}
         {page === 'club' && <ClubPage owned={owned} squad={squad} setSquad={updateSquad} newCardIds={newCardIds} badge={profile.badge} claimedClubs={claimedClubs} onClaimClub={claimClubMilestone} onEquipBadge={equipClubBadge} onSell={quickSell} onUpgrade={upgradeCard} />}
         {page === 'market' && <MarketPage userId={cloudUserId} coins={coins} owned={owned} squad={squad} onList={listOnMarket} onBuy={buyMarketCard} onCancel={cancelMarketListing} onClaim={claimMarketSale} />}
-        {page === 'arena' && <ArenaPage userId={cloudUserId} teamRating={teamRating} chemistry={chemistry} perks={perks} teamName={profile.teamName} emblem={profile.emblem} accent={profile.accent} league={league} setLeague={applyLeague} onWin={awardArenaWin} onMvpBonus={awardMvpBonus} squad={squadDuelists} ecosystem={ecosystem.teams} quests={quests} onClaimQuest={claimQuest} scrimWins={quests.day === dayKeyOf(Date.now()) ? quests.scrimWins : 0} scrimsPlayed={quests.day === dayKeyOf(Date.now()) ? quests.scrims : 0} onScrimmage={resolveScrimmage} onCareerMatch={recordCareerMatch} recentForm={career.recent} liveSlotRef={liveSlotRef} />}
+        {page === 'arena' && <ArenaPage userId={cloudUserId} teamRating={teamRating} chemistry={chemistry} perks={perks} teamName={profile.teamName} emblem={profile.emblem} accent={profile.accent} league={league} setLeague={applyLeague} onWin={awardArenaWin} onMvpBonus={awardMvpBonus} squad={squadDuelists} ecosystem={ecosystem.teams} scrimWins={quests.day === dayKeyOf(Date.now()) ? quests.scrimWins : 0} scrimsPlayed={quests.day === dayKeyOf(Date.now()) ? quests.scrims : 0} onScrimmage={resolveScrimmage} onCareerMatch={recordCareerMatch} recentForm={career.recent} liveSlotRef={liveSlotRef} />}
         {page === 'profile' && <ProfilePage profile={profile} setProfile={setProfile} managerXp={managerXp} trophies={league.trophies} career={career} />}
       </div>
     </main>
     <MobileTabBar page={page} setPage={setPage} />
     {showCreation && <CreationModal onComplete={openCreation} />}
+    {questsOpen && <div className="league-overlay" onClick={() => setQuestsOpen(false)}><div className="quest-modal" role="dialog" aria-modal="true" aria-label="Daily quests" onClick={(event) => event.stopPropagation()}><button className="overlay-close" onClick={() => setQuestsOpen(false)} aria-label="Close daily quests"><X size={18} /></button><DailyQuestsPanel quests={quests} onClaim={claimQuest} /></div></div>}
     {pack && <PackOverlay pack={pack} onClose={() => setPack(null)} onReveal={(instanceId) => setPack((current) => current?.map((card) => card.instanceId === instanceId ? { ...card, revealed: true } : card) ?? null)} onRevealAll={() => setPack((current) => current?.map((card) => ({ ...card, revealed: true })) ?? null)} onContinue={() => { setPack(null); setPage('club'); }} />}
     {toast && <div className="toast"><BadgeCheck size={17} /> {toast}</div>}
     {recap && <MatchRecapModal info={recap} onClose={() => setRecap(null)} />}
@@ -1684,16 +1687,17 @@ function MobileTabBar({ page, setPage }: { page: Page; setPage: (page: Page) => 
   return <nav className="mobile-tabbar" aria-label="Main navigation">{items.map(({ id, label, icon: Icon }) => <button key={id} type="button" className={page === id ? 'active' : ''} aria-current={page === id ? 'page' : undefined} onClick={() => setPage(id)}><Icon size={18} /><span>{label}</span></button>)}</nav>;
 }
 
-function Header({ profile, coins, cloud, onLogout }: { profile: Profile; coins: number; cloud: CloudSync; onLogout: () => void }) {
+function Header({ profile, coins, cloud, quests, onOpenQuests, onLogout }: { profile: Profile; coins: number; cloud: CloudSync; quests: QuestState; onOpenQuests: () => void; onLogout: () => void }) {
   const [muted, setMuted] = useState(isSoundMuted);
   useEffect(() => subscribeSoundMuted(setMuted), []);
   const toggleMute = (): void => { const next = !isSoundMuted(); setSoundMuted(next); if (!next) playSound('click'); };
+  const claimedQuests = quests.claimed.length;
   const cloudLabel = cloud === 'off' ? 'LOCAL' : cloud === 'error' ? 'SYNC ISSUE' : cloud === 'idle' ? 'SYNCING' : 'CLOUD SAVE';
   const cloudHint = cloud === 'off'
     ? 'Local mode: add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to save and play online'
     : cloud === 'error' ? 'Cloud save failed. Check your Supabase keys and run the SQL script.'
       : cloud === 'idle' ? 'Syncing your club with Supabase...' : 'Club, squad and division seat saved to Supabase';
-  return <header className="ut-header"><div className="mobile-title">CS2 <span>UT</span></div><div className="header-spacer" /><button className="sound-toggle" onClick={toggleMute} title={muted ? 'Sound off – click to unmute' : 'Sound on – click to mute'} aria-label={muted ? 'Unmute sound' : 'Mute sound'} aria-pressed={muted}>{muted ? <VolumeX size={16} /> : <Volume2 size={16} />}</button><div className={`cloud-state ${cloud}`} title={cloudHint}><i />{cloudLabel}</div><div className="header-manager"><div className="avatar-circle small" style={{ backgroundColor: avatarDetails[profile.avatar].color }}>{avatarDetails[profile.avatar].icon}</div><div className="header-manager-name"><span>MANAGER</span><strong>{profile.nickname || 'New Manager'}</strong></div></div><div className="header-team"><span>TEAM</span><strong>{profile.badge && <i className="club-badge" title={`${profile.badge} club badge`}>{clubMonogram(profile.badge)}</i>}{clubLabel(profile.teamName)}</strong></div><div className="coin-balance"><Coins size={16} /><div><span>COINS</span><strong>{coins.toLocaleString()}</strong></div></div><button className="logout-profile" onClick={onLogout} aria-label="Log out"><LogOut size={14} /><span>Log Out</span></button></header>;
+  return <header className="ut-header"><div className="mobile-title">CS2 <span>UT</span></div><div className="header-spacer" /><button className="sound-toggle" onClick={toggleMute} title={muted ? 'Sound off – click to unmute' : 'Sound on – click to mute'} aria-label={muted ? 'Unmute sound' : 'Mute sound'} aria-pressed={muted}>{muted ? <VolumeX size={16} /> : <Volume2 size={16} />}</button><button type="button" className="quest-header-button" onClick={onOpenQuests} aria-haspopup="dialog" aria-label={`Open daily quests, ${claimedQuests} of ${dailyQuests.length} claimed`}><Target size={15} /><span>Quests</span><b>({claimedQuests}/{dailyQuests.length})</b></button><div className={`cloud-state ${cloud}`} title={cloudHint}><i />{cloudLabel}</div><div className="header-manager"><div className="avatar-circle small" style={{ backgroundColor: avatarDetails[profile.avatar].color }}>{avatarDetails[profile.avatar].icon}</div><div className="header-manager-name"><span>MANAGER</span><strong>{profile.nickname || 'New Manager'}</strong></div></div><div className="header-team"><span>TEAM</span><strong>{profile.badge && <i className="club-badge" title={`${profile.badge} club badge`}>{clubMonogram(profile.badge)}</i>}{clubLabel(profile.teamName)}</strong></div><div className="coin-balance"><Coins size={16} /><div><span>COINS</span><strong>{coins.toLocaleString()}</strong></div></div><button className="logout-profile" onClick={onLogout} aria-label="Log out"><LogOut size={14} /><span>Log Out</span></button></header>;
 }
 
 function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSession) => void }) {
@@ -1864,11 +1868,32 @@ function RecentForm({ entries }: { entries: MatchForm[] }) {
   </div>;
 }
 
-function SquadPage({ owned, squad, setSquad, teamRating, chemistry, perks, tactChemBonus, profile, onGoClub, quests, onClaimQuest, rosterSync }: { owned: OwnedCard[]; squad: Record<Role, string>; setSquad: (squad: Record<Role, string>) => void; teamRating: number; chemistry: number; perks: Perk[]; tactChemBonus: number; profile: Profile; onGoClub: () => void; quests: QuestState; onClaimQuest: (id: QuestId) => void; rosterSync: RosterSyncState }) {
+function SquadPage({ owned, squad, setSquad, teamRating, chemistry, perks, tactChemBonus, profile, onGoClub, rosterSync }: { owned: OwnedCard[]; squad: Record<Role, string>; setSquad: (squad: Record<Role, string>) => void; teamRating: number; chemistry: number; perks: Perk[]; tactChemBonus: number; profile: Profile; onGoClub: () => void; rosterSync: RosterSyncState }) {
   const chemAimPct = chemistry > 0 ? Math.ceil(chemistry / 20) : 0;
   const [inspect, setInspect] = useState<OwnedCard | null>(null);
+  const equippedByRole = (role: Role): OwnedCard | undefined => owned.find((card) => card.instanceId === squad[role]);
+  const squadIds = new Set(Object.values(squad).filter(Boolean));
+  const isUpgrade = (card: OwnedCard): boolean => {
+    if (squadIds.has(card.instanceId)) return false;
+    const current = equippedByRole(card.role);
+    return !current || cardPower(card).ovr > cardPower(current).ovr;
+  };
+  const upgradeCount = owned.filter(isUpgrade).length;
+  const benchCards = owned
+    .filter((card) => !squadIds.has(card.instanceId))
+    .sort((a, b) => cardPower(b).ovr - cardPower(a).ovr || a.name.localeCompare(b.name))
+    .slice(0, 5);
+  const autoOptimize = (): void => {
+    const next = { ...squad };
+    roles.forEach((role) => {
+      const best = owned.filter((card) => card.role === role).sort((a, b) => cardPower(b).ovr - cardPower(a).ovr)[0];
+      if (best) next[role] = best.instanceId;
+    });
+    playSound('click');
+    setSquad(next);
+  };
   return <>
-    <PageTitle eyebrow="MY CLUB / ACTIVE LINEUP" title="My Squad" subtitle={clubLabel(profile.teamName)} action={<div className="page-title-actions"><HltvSyncBadge sync={rosterSync} /><button className="outline-button" onClick={onGoClub}><Grid2X2 size={15} /> Browse Club</button></div>} />
+    <PageTitle eyebrow="MY CLUB / ACTIVE LINEUP" title="My Squad" subtitle={clubLabel(profile.teamName)} action={<div className="page-title-actions"><HltvSyncBadge sync={rosterSync} /><button className="outline-button auto-optimize-button" onClick={autoOptimize} disabled={upgradeCount === 0} title={upgradeCount ? `${upgradeCount} stronger card${upgradeCount === 1 ? '' : 's'} available` : 'Your strongest lineup is already equipped'}><TrendingUp size={15} /> Auto-Optimize Squad{upgradeCount > 0 && <b>{upgradeCount}</b>}</button><button className="outline-button" onClick={onGoClub}><Grid2X2 size={15} /> Browse Club</button></div>} />
     <div className="squad-hero">
       <div className="squad-hero-copy">
         <div className="eyebrow orange">ACTIVE SQUAD</div>
@@ -1882,7 +1907,6 @@ function SquadPage({ owned, squad, setSquad, teamRating, chemistry, perks, tactC
       </div>
       <div className="squad-emblem" style={{ '--emblem-color': avatarDetails[profile.avatar].color } as React.CSSProperties}>{avatarDetails[profile.avatar].icon}<span>{clubMonogram(profile.teamName)}</span></div>
     </div>
-    <DailyQuestsPanel quests={quests} onClaim={onClaimQuest} compact />
     <div className="section-row">
       <div><div className="eyebrow">STARTING FIVE</div><h3>Active Lineup • 5 Roles</h3></div>
     </div>
@@ -1890,8 +1914,9 @@ function SquadPage({ owned, squad, setSquad, teamRating, chemistry, perks, tactC
     <div className="chem-legend"><span className="chem-key team"><i />SAME PRO TEAM</span><span className="chem-key country"><i />SAME COUNTRY</span><span className="chem-key region"><i />SAME REGION</span><span className="chem-key icon"><i />ICON 90+ UNIVERSAL</span></div>
     <ChemistryLinks owned={owned} squad={squad} />
     <div className="squad-grid">{roles.map((role) => <SquadSlot key={role} role={role} card={owned.find((item) => item.instanceId === squad[role])} onGoClub={onGoClub} onRemove={() => setSquad({ ...squad, [role]: '' })} onInspect={() => { const equipped = owned.find((item) => item.instanceId === squad[role]); if (equipped) setInspect(equipped); }} />)}</div>
+    {benchCards.length > 0 && <><div className="section-row bench-heading"><div><div className="eyebrow">BENCH · STRONGEST FIRST</div><h3>Reserves</h3></div><button className="outline-button" onClick={onGoClub}>Manage club <ChevronRight size={14} /></button></div><div className="squad-bench">{benchCards.map((card) => <div className="bench-item" key={card.instanceId}>{isUpgrade(card) && <span className="upgrade-badge">▲ UPGRADE</span>}<FutCard card={card} compact onClick={() => setInspect(card)} /></div>)}</div></>}
     <div className="squad-tip"><Sparkles size={16} /><span><strong>Squad tip:</strong> Stack same pro team links for the strongest boost, then same country, then shared region ({'Europe/CIS'} · {'Asia-Pacific'} · {'Americas'}). Every 90+ Icon links green with anyone.</span></div>
-    {inspect && <CardInspectModal card={inspect} onClose={() => setInspect(null)} action={{ label: 'Remove from Squad', onClick: () => { setSquad({ ...squad, [inspect.role]: '' }); setInspect(null); } }} />}
+    {inspect && <CardInspectModal card={inspect} onClose={() => setInspect(null)} action={squadIds.has(inspect.instanceId) ? { label: 'Remove from Squad', onClick: () => { setSquad({ ...squad, [inspect.role]: '' }); setInspect(null); } } : { label: 'Add to Squad', onClick: () => { setSquad({ ...squad, [inspect.role]: inspect.instanceId }); setInspect(null); } }} />}
   </>;
 }
 
@@ -2122,12 +2147,21 @@ function ClubPage({ owned, squad, setSquad, newCardIds, badge, claimedClubs, onC
   const [query, setQuery] = useState('');
   const [sellTarget, setSellTarget] = useState<OwnedCard | null>(null);
   const [inspect, setInspect] = useState<OwnedCard | null>(null);
-  const filtered = owned.filter((card) => (tierFilter === 'All' || card.tier === tierFilter) && (roleFilter === 'All' || card.role === roleFilter) && card.name.toLowerCase().includes(query.toLowerCase()));
+  const equippedIds = new Set(Object.values(squad).filter(Boolean));
+  const equippedByRole = (role: Role): OwnedCard | undefined => owned.find((card) => card.instanceId === squad[role]);
+  const isUpgrade = (card: OwnedCard): boolean => {
+    if (equippedIds.has(card.instanceId)) return false;
+    const current = equippedByRole(card.role);
+    return !current || cardPower(card).ovr > cardPower(current).ovr;
+  };
+  const filtered = owned
+    .filter((card) => (tierFilter === 'All' || card.tier === tierFilter) && (roleFilter === 'All' || card.role === roleFilter) && card.name.toLowerCase().includes(query.toLowerCase()))
+    .sort((a, b) => cardPower(b).ovr - cardPower(a).ovr || a.name.localeCompare(b.name));
   const addToSquad = (card: OwnedCard): void => { if (Object.values(squad).includes(card.instanceId)) return; setSquad({ ...squad, [card.role]: card.instanceId }); };
   const ownedIds = new Set(owned.map((card) => card.id));
   const completedClubs = CLUB_GROUPS.filter((club) => club.players.every((player) => ownedIds.has(player.id))).length;
   const copies = (card: OwnedCard): number => owned.filter((item) => item.id === card.id).length;
-  return <><PageTitle eyebrow="YOUR COLLECTION" title="My Club" subtitle={view === 'owned' ? `${owned.length} player cards collected across every card tier.` : view === 'teams' ? `Complete a real club's five-man roster to claim its badge and 5,000 coins.` : `Explore every player available in the ${database.length}-card database.`} action={<div className="club-tabs"><button className={view === 'owned' ? 'active' : ''} onClick={() => setView('owned')}>My Owned Cards <span>{owned.length}</span></button><button className={view === 'catalog' ? 'active' : ''} onClick={() => setView('catalog')}>All Players Catalog <span>{database.length}</span></button><button className={view === 'teams' ? 'active' : ''} onClick={() => setView('teams')}>Teams <span>{completedClubs}/{CLUB_GROUPS.length}</span></button></div>} />{view === 'owned' ? <><div className="club-toolbar"><div className="search-box"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search player..." /></div><Filter size={14} className="text-slate-500" /><div className="pill-row">{(['All', 'Major MVP', 'TOTW', 'Wonderkid', 'Icon', 'Star', 'Gold', 'Silver', 'Bronze'] as (Tier | 'All')[]).map((tier) => <button key={tier} className={`filter-pill ${tierFilter === tier ? 'active' : ''}`} onClick={() => setTierFilter(tier)}>{tier}<span>{tier === 'All' ? owned.length : owned.filter((card) => card.tier === tier).length}</span></button>)}</div><div className="pill-row">{(['All', ...roles] as (Role | 'All')[]).map((role) => <button key={role} className={`filter-pill ${roleFilter === role ? 'active' : ''}`} onClick={() => setRoleFilter(role)}>{role === 'Lurker' ? 'Support' : role}</button>)}</div></div>{filtered.length ? <div className="club-grid">{filtered.map((card) => <div className="club-item" key={card.instanceId}><FutCard card={card} isNew={newCardIds.includes(card.instanceId)} onClick={() => setInspect(card)} /><div className="club-actions"><button onClick={() => addToSquad(card)} className={Object.values(squad).includes(card.instanceId) ? 'active' : ''}>{Object.values(squad).includes(card.instanceId) ? <BadgeCheck size={14} /> : <Shield size={14} />} {Object.values(squad).includes(card.instanceId) ? 'In Squad' : 'Add to Squad'}</button>{copies(card) > 1 && cardLevel(card.level) < CARD_MAX_LEVEL && <button onClick={() => onUpgrade(card)} className="upgrade-button"><TrendingUp size={13} /> Upgrade (Lvl +1)<b>×{copies(card)}</b></button>}<button onClick={() => setSellTarget(card)} className="sell-button"><Coins size={13} /> Quick Sell +{tierConfig[card.tier].sell.toLocaleString()}</button></div></div>)}</div> : <div className="empty-club"><Box size={32} /><h3>No cards found</h3><p>Try another filter or open a pack to grow your club.</p></div>}</> : view === 'teams' ? <TeamsPanel owned={owned} badge={badge} claimedClubs={claimedClubs} onClaim={onClaimClub} onEquip={onEquipBadge} /> : <Catalog ownedIds={ownedIds} newCardIds={newCardIds} />}{sellTarget && <div className="league-overlay" onClick={() => setSellTarget(null)}><div className="confirm-modal" onClick={(event) => event.stopPropagation()}><div className="eyebrow orange">QUICK SELL</div><h3>Quick Sell {sellTarget.name}?</h3><p>{sellTarget.tier} · {sellTarget.role} · OVR {sellTarget.ovr}. This card leaves your club permanently.</p><strong className="confirm-value">+{tierConfig[sellTarget.tier].sell.toLocaleString()} Coins</strong><div className="confirm-actions"><button className="league-ghost" onClick={() => setSellTarget(null)}>Cancel</button><button className="primary-button" onClick={() => { onSell(sellTarget); setSellTarget(null); }}><Coins size={14} /> Quick Sell</button></div></div></div>}{inspect && <CardInspectModal card={inspect} onClose={() => setInspect(null)} action={{ label: Object.values(squad).includes(inspect.instanceId) ? 'In Squad' : 'Add to Squad', disabled: Object.values(squad).includes(inspect.instanceId), onClick: () => { addToSquad(inspect); setInspect(null); } }} />}</>;
+  return <><PageTitle eyebrow="YOUR COLLECTION" title="My Club" subtitle={view === 'owned' ? `${owned.length} player cards collected across every card tier.` : view === 'teams' ? `Complete a real club's five-man roster to claim its badge and 5,000 coins.` : `Explore every player available in the ${database.length}-card database.`} action={<div className="club-tabs"><button className={view === 'owned' ? 'active' : ''} onClick={() => setView('owned')}>My Owned Cards <span>{owned.length}</span></button><button className={view === 'catalog' ? 'active' : ''} onClick={() => setView('catalog')}>All Players Catalog <span>{database.length}</span></button><button className={view === 'teams' ? 'active' : ''} onClick={() => setView('teams')}>Teams <span>{completedClubs}/{CLUB_GROUPS.length}</span></button></div>} />{view === 'owned' ? <><div className="club-toolbar"><div className="search-box"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search player..." /></div><Filter size={14} className="text-slate-500" /><div className="pill-row">{(['All', 'Major MVP', 'TOTW', 'Wonderkid', 'Icon', 'Star', 'Gold', 'Silver', 'Bronze'] as (Tier | 'All')[]).map((tier) => <button key={tier} className={`filter-pill ${tierFilter === tier ? 'active' : ''}`} onClick={() => setTierFilter(tier)}>{tier}<span>{tier === 'All' ? owned.length : owned.filter((card) => card.tier === tier).length}</span></button>)}</div><div className="pill-row">{(['All', ...roles] as (Role | 'All')[]).map((role) => <button key={role} className={`filter-pill ${roleFilter === role ? 'active' : ''}`} onClick={() => setRoleFilter(role)}>{role === 'Lurker' ? 'Support' : role}</button>)}</div></div>{filtered.length ? <div className="club-grid">{filtered.map((card) => <div className="club-item" key={card.instanceId}>{isUpgrade(card) && <span className="upgrade-badge">▲ UPGRADE</span>}<FutCard card={card} isNew={newCardIds.includes(card.instanceId)} onClick={() => setInspect(card)} /><div className="club-actions"><button onClick={() => addToSquad(card)} className={Object.values(squad).includes(card.instanceId) ? 'active' : ''}>{Object.values(squad).includes(card.instanceId) ? <BadgeCheck size={14} /> : <Shield size={14} />} {Object.values(squad).includes(card.instanceId) ? 'In Squad' : 'Add to Squad'}</button>{copies(card) > 1 && cardLevel(card.level) < CARD_MAX_LEVEL && <button onClick={() => onUpgrade(card)} className="upgrade-button"><TrendingUp size={13} /> Upgrade (Lvl +1)<b>×{copies(card)}</b></button>}<button onClick={() => setSellTarget(card)} className="sell-button"><Coins size={13} /> Quick Sell +{tierConfig[card.tier].sell.toLocaleString()}</button></div></div>)}</div> : <div className="empty-club"><Box size={32} /><h3>No cards found</h3><p>Try another filter or open a pack to grow your club.</p></div>}</> : view === 'teams' ? <TeamsPanel owned={owned} badge={badge} claimedClubs={claimedClubs} onClaim={onClaimClub} onEquip={onEquipBadge} /> : <Catalog ownedIds={ownedIds} newCardIds={newCardIds} />}{sellTarget && <div className="league-overlay" onClick={() => setSellTarget(null)}><div className="confirm-modal" onClick={(event) => event.stopPropagation()}><div className="eyebrow orange">QUICK SELL</div><h3>Quick Sell {sellTarget.name}?</h3><p>{sellTarget.tier} · {sellTarget.role} · OVR {sellTarget.ovr}. This card leaves your club permanently.</p><strong className="confirm-value">+{tierConfig[sellTarget.tier].sell.toLocaleString()} Coins</strong><div className="confirm-actions"><button className="league-ghost" onClick={() => setSellTarget(null)}>Cancel</button><button className="primary-button" onClick={() => { onSell(sellTarget); setSellTarget(null); }}><Coins size={14} /> Quick Sell</button></div></div></div>}{inspect && <CardInspectModal card={inspect} onClose={() => setInspect(null)} action={{ label: Object.values(squad).includes(inspect.instanceId) ? 'In Squad' : 'Add to Squad', disabled: Object.values(squad).includes(inspect.instanceId), onClick: () => { addToSquad(inspect); setInspect(null); } }} />}</>;
 }
 
 function Catalog({ ownedIds, newCardIds }: { ownedIds: Set<string>; newCardIds: string[] }) {
@@ -2215,11 +2249,31 @@ const createBotListing = (): MarketListing => {
   };
 };
 
+const BOT_MARKET_KEY = 'cs2-market-bot-rotation-v1';
+const BOT_MARKET_MS = 5 * 60 * 1000;
+const BOT_MARKET_SIZE = 10;
+type BotMarketRotation = { at: number; listings: MarketListing[] };
+const freshBotMarket = (): BotMarketRotation => ({ at: Date.now(), listings: Array.from({ length: BOT_MARKET_SIZE }, createBotListing) });
+const readBotMarket = (): BotMarketRotation => {
+  try {
+    const raw = localStorage.getItem(BOT_MARKET_KEY);
+    if (raw) {
+      const saved = JSON.parse(raw) as Partial<BotMarketRotation>;
+      const at = Number(saved.at);
+      const listings = Array.isArray(saved.listings) ? saved.listings.filter((item): item is MarketListing => Boolean(item && typeof item.id === 'string' && item.status === 'open')) : [];
+      if (Number.isFinite(at) && Date.now() < at + BOT_MARKET_MS && listings.length) return { at, listings: listings.slice(0, BOT_MARKET_SIZE) };
+    }
+  } catch { /* storage unavailable: rotate in memory */ }
+  return freshBotMarket();
+};
+
 function MarketPage({ userId, coins, owned, squad, onList, onBuy, onCancel, onClaim }: { userId: string | null; coins: number; owned: OwnedCard[]; squad: Record<Role, string>; onList: (card: OwnedCard, price: number) => Promise<boolean>; onBuy: (listing: MarketListing) => Promise<boolean>; onCancel: (listing: MarketListing) => Promise<boolean>; onClaim: (listing: MarketListing) => Promise<boolean> }) {
   const [tab, setTab] = useState<'browse' | 'sell' | 'mine'>('browse');
   const [shop, setShop] = useState<MarketListing[]>([]);
   const [mine, setMine] = useState<MarketListing[]>([]);
-  const [bots, setBots] = useState<MarketListing[]>([]);
+  const [botRotation, setBotRotation] = useState<BotMarketRotation>(readBotMarket);
+  const [marketNow, setMarketNow] = useState(() => Date.now());
+  const bots = botRotation.listings;
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<'All' | 'AWPer' | 'IGL' | 'Entry' | 'Rifler' | 'Support'>('All');
@@ -2241,13 +2295,18 @@ function MarketPage({ userId, coins, owned, squad, onList, onBuy, onCancel, onCl
   }, [userId]);
   useEffect(() => { void reload(); }, [reload, tab]);
   useEffect(() => {
-    const target = Math.max(0, 10 - shop.length);
-    setBots((current) => {
-      if (current.length === target) return current;
-      if (current.length > target) return current.slice(0, target);
-      return [...current, ...Array.from({ length: target - current.length }, createBotListing)];
-    });
-  }, [userId, shop.length, bots.length]);
+    try { localStorage.setItem(BOT_MARKET_KEY, JSON.stringify(botRotation)); } catch { /* storage unavailable */ }
+  }, [botRotation]);
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const now = Date.now();
+      setMarketNow(now);
+      setBotRotation((current) => now >= current.at + BOT_MARKET_MS ? freshBotMarket() : current);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const botRemaining = Math.max(0, botRotation.at + BOT_MARKET_MS - marketNow);
+  const botCountdown = clockCountdown(botRemaining);
   const term = query.trim().toLowerCase();
   const listed = [...shop, ...bots].filter((listing) => {
     const card = listing.card as { name?: string; team?: string; role?: string; tier?: string };
@@ -2272,7 +2331,11 @@ function MarketPage({ userId, coins, owned, squad, onList, onBuy, onCancel, onCl
     try {
       const ok = await onBuy(listing);
       if (ok) {
-        if (listing.sellerId.startsWith('bot:')) setBots((current) => current.filter((item) => item.id !== listing.id));
+        if (listing.sellerId.startsWith('bot:')) setBotRotation((current) => {
+          const listings = current.listings.filter((item) => item.id !== listing.id);
+          while (listings.length < BOT_MARKET_SIZE) listings.push(createBotListing());
+          return { ...current, listings };
+        });
         void reload();
       }
     } finally {
@@ -2281,7 +2344,7 @@ function MarketPage({ userId, coins, owned, squad, onList, onBuy, onCancel, onCl
   };
   const runCancel = async (listing: MarketListing): Promise<void> => { const ok = await onCancel(listing); setNote(ok ? 'Listing cancelled and card returned.' : 'Could not cancel this listing.'); if (ok) void reload(); };
   const runClaim = async (listing: MarketListing): Promise<void> => { const ok = await onClaim(listing); setNote(ok ? 'Payout added to your coins.' : 'Payout already claimed.'); if (ok) void reload(); };
-  return <><PageTitle eyebrow="TRANSFERS" title="Market" subtitle="List surplus cards for your own price and buy from real managers. AI bot managers keep at least 10 listings live. Seller payouts are taxed 5%." action={<div className="club-tabs"><button className={tab === 'browse' ? 'active' : ''} onClick={() => setTab('browse')}>Browse <span>{shop.length + bots.length}</span></button><button className={tab === 'sell' ? 'active' : ''} onClick={() => setTab('sell')}>Sell a card <span>{owned.length}</span></button><button className={tab === 'mine' ? 'active' : ''} onClick={() => setTab('mine')}>My listings <span>{mine.length}</span></button></div>} />
+  return <><PageTitle eyebrow="TRANSFERS" title="Market" subtitle="List surplus cards for your own price and buy from real managers. AI bot managers keep at least 10 listings live. Seller payouts are taxed 5%." action={<div className="page-title-actions"><span className="market-refresh-badge"><Timer size={12} /> Refreshes in <b>{botCountdown}</b></span><div className="club-tabs"><button className={tab === 'browse' ? 'active' : ''} onClick={() => setTab('browse')}>Browse <span>{shop.length + bots.length}</span></button><button className={tab === 'sell' ? 'active' : ''} onClick={() => setTab('sell')}>Sell a card <span>{owned.length}</span></button><button className={tab === 'mine' ? 'active' : ''} onClick={() => setTab('mine')}>My listings <span>{mine.length}</span></button></div></div>} />
     {!userId && <div className="market-offline market-offline-banner"><Globe size={21} /><div><h3>AI market preview</h3><p>Bot managers are keeping 10 listings live. Connect Supabase to sell your own cards and trade with real managers.</p></div></div>}
     {tab === 'browse' ? <>
       <div className="market-toolbar">
@@ -2417,7 +2480,7 @@ function LeagueStandings({ teams, division, divisionName, zone, teamName, emblem
     </div>
   </div>;
 }
-function ArenaPage({ userId, teamRating, chemistry, perks, league, setLeague, onWin, onMvpBonus, squad, quests, onClaimQuest, scrimWins, scrimsPlayed, onScrimmage, onCareerMatch, recentForm, ecosystem, teamName, emblem, accent, liveSlotRef }: { teamRating: number; chemistry: number; perks: Perk[]; teamName: string; emblem?: EmblemId; accent?: string; league: LeagueState; setLeague: (next: LeagueState) => void; onWin: (reward: number, xp: number, message?: string) => void; onMvpBonus: (amount: number) => void; squad: Duelist[]; quests: QuestState; onClaimQuest: (id: QuestId) => void; scrimWins: number; onScrimmage: (won: boolean, asScrim?: boolean) => void; onCareerMatch: (won: boolean, map: RadarMapId, score: { us: number; them: number }, opponent: string) => void; recentForm: MatchForm[]; scrimsPlayed: number; ecosystem: EcoTeam[]; userId: string | null; liveSlotRef: { current: number | null } }) {
+function ArenaPage({ userId, teamRating, chemistry, perks, league, setLeague, onWin, onMvpBonus, squad, scrimWins, scrimsPlayed, onScrimmage, onCareerMatch, recentForm, ecosystem, teamName, emblem, accent, liveSlotRef }: { teamRating: number; chemistry: number; perks: Perk[]; teamName: string; emblem?: EmblemId; accent?: string; league: LeagueState; setLeague: (next: LeagueState) => void; onWin: (reward: number, xp: number, message?: string) => void; onMvpBonus: (amount: number) => void; squad: Duelist[]; scrimWins: number; onScrimmage: (won: boolean, asScrim?: boolean) => void; onCareerMatch: (won: boolean, map: RadarMapId, score: { us: number; them: number }, opponent: string) => void; recentForm: MatchForm[]; scrimsPlayed: number; ecosystem: EcoTeam[]; userId: string | null; liveSlotRef: { current: number | null } }) {
   const [opponentId, setOpponentId] = useState('tier2');
   const [live, setLive] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -2500,7 +2563,6 @@ function ArenaPage({ userId, teamRating, chemistry, perks, league, setLeague, on
   const liveWindowStart = liveHour === null ? null : slotStartOfDay(dayStartOf(now), liveHour);
   const liveReady = liveWindowStart !== null && (league.lastSlotAt ?? 0) < liveWindowStart;
   const nextStart = liveReady && liveWindowStart !== null ? liveWindowStart : liveHour !== null && liveWindowStart !== null ? liveWindowStart + 3600000 : nextSlotAt(now);
-  const nextHour = new Date(nextStart).getHours();
   const countdown = clockCountdown(nextStart - now);
 
   const showHighlight = useCallback((next: NonNullable<MatchHighlight>): void => {
@@ -2704,7 +2766,6 @@ function ArenaPage({ userId, teamRating, chemistry, perks, league, setLeague, on
       <div className="confirm-actions"><button className="league-ghost" onClick={closeChallenge}>Close</button></div>
     </>}
   </div></div> : null;
-  const questPanel = <DailyQuestsPanel quests={quests} onClaim={onClaimQuest} />;
   const scoreboardModal = scoreboard ? <PostMatchScoreboard board={scoreboard} teamName={teamName} emblem={emblem} accent={accent} opponentName={scoreboard.opponentName} onClose={() => setScoreboard(null)} /> : null;
 
   const recapModal = dayResult ? <MatchRecapModal info={{ matches: [], coins: dayResult.coins, day: dayResult }} onClose={() => setDayResult(null)} /> : null;
@@ -2724,12 +2785,10 @@ function ArenaPage({ userId, teamRating, chemistry, perks, league, setLeague, on
   </div></div> : null;
   const roadmap = showRoadmap ? <LeagueRoadmap current={league.division} onClose={() => setShowRoadmap(false)} onOpen={(division) => { setShowRoadmap(false); setBrowseDivision(division); }} /> : null;
   if (live || result) return <><ArenaLive teamName={teamName} emblem={emblem} accent={accent} lineup={squad} opponentRoster={opponentRoster} economy={economy} tactic={tactic} radarMap={radarMap} highlight={highlight} broadcast={leagueLive} resultNote={resultNote} opponent={opponent} score={score} round={round} roundLog={roundLog} ourSide={ourSide} feed={feed} alive={alive} paused={paused} speed={speed} setSpeed={setSpeed} onPause={() => setPaused((current) => !current)} onRound={playRound} onSkip={skipToResult} result={result} onExit={() => { setLive(false); setResult(null); setScoreboard(null); setLeagueLive(false); setScrimLive(false); liveSlotRef.current = null; slotStartRef.current = null; }} />{scoreboardModal}{recapModal}</>;
-  return <><PageTitle eyebrow="COMPETITIVE PLAY" title="Play Arena" subtitle="League matches run automatically every hour at :30 — play friendlies and daily quests while you wait." /><div className="arena-mode-bar"><span className="arena-mode-note">LEAGUE SEASON · 16 TEAMS · DIV {league.division + 1} • {zoneLabel(zoneIndex).toUpperCase()} · {division.name} · {zoneCount > 1 ? `${zoneCount} ZONES · ` : ''}Season {league.season}</span></div>
-    <PreMatchTactics tactic={tactic} onChange={setTactic} />
-    {questPanel}
+  return <><PageTitle eyebrow="COMPETITIVE PLAY" title="Play Arena" subtitle="League matches run automatically every hour at :30 — play friendlies while you wait." action={<span className={`arena-countdown-pill ${liveReady ? 'is-live' : ''}`}><Timer size={13} /> {liveReady ? 'League match LIVE now' : <>Next League Match: <b>{countdown}</b></>}</span>} /><div className="arena-mode-bar"><span className="arena-mode-note">LEAGUE SEASON · 16 TEAMS · DIV {league.division + 1} • {zoneLabel(zoneIndex).toUpperCase()} · {division.name} · {zoneCount > 1 ? `${zoneCount} ZONES · ` : ''}Season {league.season}</span></div>
     <div className="league-shell"><div className="league-hero"><div className="league-rank-badge"><Crown size={20} /><strong>{league.division + 1}</strong><span>DIVISION</span></div><div className="league-hero-copy"><div className="eyebrow orange">DIVISION {league.division + 1} OF 15 · {zoneLabel(zoneIndex).toUpperCase()} · {seasonLabel(league.season).toUpperCase()} · ENDS IN {seasonCountdown(Date.now()).toUpperCase()}</div><div className="zone-badges"><span className="zone-badge">DIV {league.division + 1} • {zoneLabel(zoneIndex).toUpperCase()}</span>{zoneCount > 1 && <span className="zone-badge soft">{zoneCount} ZONES</span>}<span className="zone-badge soft">{humanCount} REAL MANAGERS · {ZONE_SIZE - humanCount} BOTS</span></div><h2>{division.name}</h2><p>16-team room · 24 hourly matches per day · Opponent OVR {division.ovrMin}–{division.ovrMax}{league.division === divisions.length - 1 ? ' · Top 16 World Elite' : ''}</p><div className="league-zone-legend"><span className="promotion">Promote 1–{promoteCount} after all {SLOTS_PER_DAY} matches</span>{league.division > 0 && <span className="relegation">Relegate 14–16 when the table closes</span>}<span><Coins size={12} /> +{LEAGUE_WIN_COINS} win / +{LEAGUE_LOSS_COINS} loss</span></div></div><div className="league-progress"><span>TODAY</span><strong>{Math.min(slot, SLOTS_PER_DAY)} / {SLOTS_PER_DAY}</strong><div className="league-progress-bar"><i style={{ width: `${Math.round((Math.min(slot, SLOTS_PER_DAY) / SLOTS_PER_DAY) * 100)}%` }} /></div><small>{leagueOpponentTeam ? `Next: ${leagueOpponentTeam.name} · ${leagueOpponentTeam.ovr} OVR` : 'Next opponent loading'}</small></div></div>
       <RecentForm entries={recentForm} />
-      <div className="match-clock-card"><div className="match-clock-copy"><div className="eyebrow orange">{liveReady ? 'LIVE BROADCAST WINDOW' : 'HOURLY LEAGUE SCHEDULE'}</div><strong>{liveReady ? 'League match is LIVE now — 2D tactical broadcast, 1x speed only.' : `Next League Match starts at ${slotClockLabel(nextHour)} (in ${countdown})`}</strong><small>{liveReady ? 'Stay on this page to watch the tactical map in real time.' : 'Matches simulate automatically at every :30 — even while you are offline.'}</small></div><div className="match-clock-right"><span className={`clock-big ${liveReady ? 'is-live' : ''}`}>{liveReady ? 'LIVE' : countdown}</span><small>{liveReady ? `Window closes ${String(liveHour ?? 0).padStart(2, '0')}:35` : `Kick-off ${slotClockLabel(nextHour)}`}</small></div></div>
+      <PreMatchTactics tactic={tactic} onChange={setTactic} />
       <div className="league-actions"><button className="primary-button" onClick={() => setScrimOpen(true)}><Swords size={16} /> {scrimLimitReached ? <span className="scrim-limit-label">{scrimLimitLabel}</span> : <>Play Scrimmage (Friendly) <span className="scrim-count">{scrimsToday}/{SCRIM_DAILY_LIMIT} Daily Scrims</span></>}</button><button className="league-ghost" onClick={openChallenge}><Users size={15} /> Challenge Friend</button><button className="league-ghost" onClick={() => setShowRoadmap(true)}><LayoutGrid size={15} /> View League Roadmap</button><button className="league-ghost" onClick={() => setShowTopClubs(true)}><Globe size={15} /> Global Top Clubs</button><span className="league-prize"><Trophy size={13} /> Friendly wins +{SCRIM_WIN_COINS} · {scrimWins}/{SCRIM_WIN_CAP} paid wins · {scrimsToday}/{SCRIM_DAILY_LIMIT} Daily Scrims</span></div><div className={`league-season-progress ${ourRank <= promoteCount ? 'in-zone' : ''}`}><div className="season-progress-main"><span className="eyebrow orange">SEASON PROGRESS</span><strong>Matches Played: {Math.min(slot, SLOTS_PER_DAY)} / {SLOTS_PER_DAY}</strong><small>{atTopDivision ? (ourRank <= promoteCount ? `In the promotion zone · finish Top ${promoteCount} when all ${SLOTS_PER_DAY} matches are played to defend the top division.` : `${SLOTS_PER_DAY - slot} matches left · climb into the Top ${promoteCount} before match ${SLOTS_PER_DAY} to defend your seat.`) : ourRank <= promoteCount ? `In the promotion zone · finish Top ${promoteCount} when all ${SLOTS_PER_DAY} matches are played to move up to ${divisions[league.division + 1].name}.` : `${SLOTS_PER_DAY - slot} matches left · you must climb into the Top ${promoteCount} before match ${SLOTS_PER_DAY} to be promoted.`}</small></div><div className="season-progress-metrics"><div><small>PROMOTION ZONE</small><strong>TOP {promoteCount}</strong></div><div><small>YOUR POSITION</small><strong>#{ourRank}</strong></div><div><small>DIVISION PRIZE</small><strong><Coins size={12} /> {division.reward.toLocaleString()}</strong></div></div><div className="league-progress-bar season"><i style={{ width: `${Math.round((Math.min(slot, SLOTS_PER_DAY) / SLOTS_PER_DAY) * 100)}%` }} /></div></div>
       <LeagueStandings teams={sortedTeams} division={league.division} divisionName={division.name} zone={zoneLabel(zoneIndex)} teamName={teamName} emblem={emblem} accent={accent} onTeam={openStandingsTeam} />
     </div>

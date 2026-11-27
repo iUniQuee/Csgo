@@ -348,7 +348,7 @@ const createAgent = (player: RadarDuelist, side: Side, map: RadarMap, index: num
   const path = (side === 'ct' ? map.ctRoutes : map.tRoutes)[lane];
   const start = path[0] ?? (side === 'ct' ? map.spawns.ct : map.spawns.t);
   const site = lane === 'B' ? map.sites.B : map.sites.A;
-  const offset = (index % 3 - 1) * 0.7;
+  const offset = (index - 2) * 0.85;
   const awp = player.role === 'AWPer';
   const entry = player.role === 'Entry';
   return {
@@ -386,12 +386,23 @@ const createAgent = (player: RadarDuelist, side: Side, map: RadarMap, index: num
   };
 };
 
+const RADAR_ROLES = ['Entry', 'AWPer', 'IGL', 'Rifler', 'Lurker'];
+/** Always start a complete five-a-side round, even when a lineup is missing a role. */
+const padRoster = (roster: RadarDuelist[]): RadarDuelist[] => {
+  const players = roster.filter(Boolean).slice(0, 5);
+  while (players.length < 5) {
+    const index = players.length;
+    players.push({ name: `Stand-in ${index + 1}`, role: RADAR_ROLES[index], ovr: 60, aim: 60, rfl: 60, sns: 60, clt: 60 });
+  }
+  return players;
+};
+
 const createRadarRound = (map: RadarMap, ours: RadarDuelist[], theirs: RadarDuelist[], swapSides = false): RadarState => {
   const ourSide: Side = swapSides ? 't' : 'ct';
   const theirSide: Side = swapSides ? 'ct' : 't';
   const agents = [
-    ...ours.slice(0, 5).map((player, index) => createAgent(player, ourSide, map, index)),
-    ...theirs.slice(0, 5).map((player, index) => createAgent(player, theirSide, map, index)),
+    ...padRoster(ours).map((player, index) => createAgent(player, ourSide, map, index)),
+    ...padRoster(theirs).map((player, index) => createAgent(player, theirSide, map, index)),
   ];
   return {
     tick: 0,
