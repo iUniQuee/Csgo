@@ -90,6 +90,7 @@ const embeddedProfile = (row: TeamRow): ProfileEmbed => {
 
 /** Reported once, so a missing table does not spam the console every minute. */
 let reported = false;
+let reportedEmpty = false;
 const report = (message: string, error: unknown): void => {
   if (reported) return;
   reported = true;
@@ -194,6 +195,14 @@ export const leagueService = {
       }
     }
 
+    if (seats.size === 0 && !reportedEmpty) {
+      // RLS denies reads by returning zero rows rather than an error, so this
+      // is the only reliable client-side signal that the public SELECT policy
+      // or table grant is missing in the deployed project.
+      reportedEmpty = true;
+      console.warn(`[league_teams] Division ${division + 1} returned no managers. If accounts exist, run supabase/fix-division-room.sql so profiles and league_teams have public SELECT policies and grants.`);
+    }
+
     // Ranked exactly like the table: points, then round difference, then the
     // manager who has held the seat longest.
     return [...seats.values()]
@@ -250,8 +259,9 @@ export const leagueService = {
       const { error } = await client.from('league_teams').upsert({
         user_id: row.userId,
         club_name: row.clubName,
-        division: row.division,
-        zone: row.zone,
+        division: Math.max(0, Math.floor(Number(row.division) || 0)),
+        // Zone A is the only room per division; old NULL/zone-B rows converge here.
+        zone: 0,
         squad_ovr: row.squadOvr,
         wins: row.wins,
         losses: row.losses,

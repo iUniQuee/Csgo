@@ -133,8 +133,10 @@ export async function saveCloudProfile(userId: string, snapshot: CloudProfileSav
       xp: snapshot.xp,
       perks: snapshot.perks,
       coins: snapshot.coins,
-      division: snapshot.division,
-      zone: snapshot.zone,
+      // The league is a single shared table per division: a missing or stale
+      // division/zone must never write NULL and push a manager out of the room.
+      division: Math.max(0, Math.floor(Number(snapshot.division) || 0)),
+      zone: 0,
       owned_cards: snapshot.ownedCards,
       active_squad: snapshot.activeSquad,
       daily_quests: snapshot.dailyQuests,

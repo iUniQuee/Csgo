@@ -995,7 +995,15 @@ function App() {
         const extras = createLeagueTeams(data.league.division).filter((team) => teamKind(team) === 'bot' && !savedTeams.some((row) => ecoIdOf(row) === ecoIdOf(team)));
         savedTeams = [...savedTeams, ...extras].slice(0, ZONE_SIZE);
       }
-      nextLeague = { ...data.league, teams: savedTeams, monthKey: data.league.monthKey ?? monthKeyOf(now), zone: data.league.zone ?? 0, zoneCount: data.league.zoneCount ?? 1 };
+      nextLeague = {
+        ...data.league,
+        division: Math.max(0, Math.min(divisions.length - 1, Math.floor(Number(data.league.division) || 0))),
+        teams: savedTeams,
+        monthKey: data.league.monthKey ?? monthKeyOf(now),
+        // Single shared table per division: every save converges on Zone A.
+        zone: 0,
+        zoneCount: 1,
+      };
       const elapsedMonths = data.league.monthKey ? monthsBetween(data.league.monthKey, monthKeyOf(now)) : 0;
       if (elapsedMonths > 0) {
         const startDivision = nextLeague.division;
@@ -1087,8 +1095,8 @@ function App() {
       const restoredCareer = cloudCareer ? normalizeCareer(cloudCareer) : createCareer();
       const savedPerks = remote.perks.filter((perk): perk is Perk => SLOT1_PERKS.includes(perk as Perk) || SLOT2_PERKS.includes(perk as Perk));
       const avatar = (Object.keys(avatarDetails) as Avatar[]).includes(remote.avatar as Avatar) ? remote.avatar as Avatar : 'falcon';
-      const division = Math.min(divisions.length - 1, Math.max(0, Math.floor(remote.division)));
-      const restoredLeague: LeagueState = { ...createSeason(division, 1, []), zone: Math.max(0, Math.floor(remote.zone)), zoneCount: 1 };
+      const division = Math.min(divisions.length - 1, Math.max(0, Math.floor(Number(remote.division) || 0)));
+      const restoredLeague: LeagueState = { ...createSeason(division, 1, []), zone: 0, zoneCount: 1 };
       const cards = (Array.isArray(remote.ownedCards) ? remote.ownedCards : [])
         .filter((card): card is OwnedCard => Boolean(card) && typeof (card as OwnedCard).instanceId === 'string')
         .map((card) => ({ ...card, level: cardLevel(card.level) }));
@@ -1265,7 +1273,7 @@ function App() {
   useEffect(() => {
     if (!hydrated || showCreation || !cloudUserId) return;
     const userId = cloudUserId;
-    const division = league.division;
+    const division = Math.max(0, Math.min(divisions.length - 1, Math.floor(Number(league.division) || 0)));
     let active = true;
     const toSeat = (row: OnlineTeamRow): LeagueTeam => ({
       id: `online-${row.userId}`,
@@ -1284,11 +1292,19 @@ function App() {
       void leagueService.fetchDivision(division).then((rows) => {
         if (!active) return;
         const current = leagueRef.current;
-        if (current.division !== division) return;
+        const rawDivision = Number(current.division);
+        const currentDivision = Number.isFinite(rawDivision)
+          ? Math.max(0, Math.min(divisions.length - 1, Math.floor(rawDivision)))
+          : null;
+        // A valid, different division means this response belongs to an older room.
+        if (currentDivision !== null && currentDivision !== division) return;
         const rivals = rows.filter((row) => row.userId !== userId).map(toSeat);
-        // The division is one shared table: normalise the local room to Zone A
-        // before merging so bot seats are keyed identically for every client.
-        const base = current.zone === 0 && current.zoneCount === 1 ? current : { ...current, zone: 0, zoneCount: 1 };
+        // The division is one shared table: normalise an invalid division and any
+        // restored zone to Division 1-style 0 / Zone A before merging, so bot
+        // seat ids match on every client.
+        const base = current.division === division && current.zone === 0 && current.zoneCount === 1
+          ? current
+          : { ...current, division, zone: 0, zoneCount: 1 };
         const next = mergeOnlineRivals(base, rivals);
         if (next !== current) { leagueRef.current = next; setLeague(next); }
       });
