@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { simulateRound, type Duelist, type FeedLine } from './matchEngine';
 import {
   assignHumanToDivision,
@@ -1016,6 +1017,11 @@ const generatePack = (id: PackId, forceIcon = false, luckPct = 0): PackCard[] =>
   if (forceIcon) cards[0] = randomTierCard('Icon');
   return cards;
 };
+
+/** Renders modal overlays at document.body so scrolling/contained page sections cannot offset them. */
+function ModalPortal({ children }: { children: ReactNode }) {
+  return createPortal(children, document.body);
+}
 
 function App() {
   const [hydrated, setHydrated] = useState(false);
@@ -2043,7 +2049,7 @@ function CardInspectModal({ card, onClose, action }: { card: InspectCard; onClos
     { key: 'sns', label: 'SNS', value: power.sns },
     { key: 'clt', label: 'CLT', value: power.clt },
   ];
-  return <div className="league-overlay card-inspect-overlay" onClick={onClose}>
+  return <ModalPortal><div className="league-overlay card-inspect-overlay" onClick={onClose}>
     <div className="card-inspect-modal" role="dialog" aria-modal="true" aria-label={`${card.name} card details`} onClick={(event) => event.stopPropagation()}>
       <button className="overlay-close" onClick={onClose} aria-label="Close card details"><X size={18} /></button>
       <div className="card-inspect-card"><FutCard card={card} /></div>
@@ -2065,7 +2071,7 @@ function CardInspectModal({ card, onClose, action }: { card: InspectCard; onClos
         {action && <button className="primary-button card-inspect-action" disabled={action.disabled} onClick={action.onClick}>{action.label}</button>}
       </div>
     </div>
-  </div>;
+  </div></ModalPortal>;
 }
 
 function StorePage({ coins, level, dailyReadyAt, iconPity, onBuyPack, rosterSync }: { coins: number; level: number; dailyReadyAt: number; iconPity: number; onBuyPack: (id: PackId, times?: number) => void; rosterSync: RosterSyncState }) {

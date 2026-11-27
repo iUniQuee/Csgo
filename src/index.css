@@ -2297,7 +2297,8 @@
 /* ==== Mobile PWA performance: no blurred backdrops, cheap shadows, smooth scroll ==== */
 html { -webkit-overflow-scrolling: touch; }
 body { -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; }
-.ultimate-content { contain: layout style; -webkit-overflow-scrolling: touch; }
+.ultimate-content { contain: style; -webkit-overflow-scrolling: touch; }
+.league-overlay { overflow-y: auto; overscroll-behavior: contain; }
 @media (max-width: 768px) {
   *, *::before, *::after {
     -webkit-backdrop-filter: none !important;
