@@ -870,7 +870,7 @@ export function TacticalRadar({ mapId, ours, theirs, opponentName, round, paused
         <span className={`radar-economy ${economy.ours.toLowerCase().replace(/\s+/g, '-')}`}>{economy.ours} · {economy.theirs}</span>
         <span className="radar-tactic">{tactic}</span>
         <span className="radar-round">ROUND {Math.min(round, 24)}</span>
-        <button className="sound-toggle radar-sound-toggle" onClick={toggleRadarMute} title={muted ? 'Radar sound off – click to unmute' : 'Radar sound on – click to mute'} aria-label={muted ? 'Unmute radar sound' : 'Mute radar sound'}>{muted ? <VolumeX size={13} /> : <Volume2 size={13} />}</button>
+        <button className="sound-toggle radar-sound-toggle" onClick={toggleRadarMute} title={muted ? 'Radar sound off – click to unmute' : 'Radar sound on – click to mute'} aria-label={muted ? 'Unmute radar sound' : 'Mute radar sound'} aria-pressed={muted}>{muted ? <VolumeX size={13} /> : <Volume2 size={13} />}</button>
       </div>
       <div className="radar-map-wrap">
         <svg className="radar-svg" viewBox="0 0 100 100" role="img" aria-label={`${map.name} tactical radar`}>

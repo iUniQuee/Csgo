@@ -1579,7 +1579,7 @@ function Header({ profile, coins, cloud, onLogout }: { profile: Profile; coins: 
     ? 'Local mode: add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to save and play online'
     : cloud === 'error' ? 'Cloud save failed. Check your Supabase keys and run the SQL script.'
       : cloud === 'idle' ? 'Syncing your club with Supabase...' : 'Club, squad and division seat saved to Supabase';
-  return <header className="ut-header"><div className="mobile-title">CS2 <span>UT</span></div><div className="header-spacer" /><button className="sound-toggle" onClick={toggleMute} title={muted ? 'Sound off – click to unmute' : 'Sound on – click to mute'} aria-label={muted ? 'Unmute sound' : 'Mute sound'}>{muted ? <VolumeX size={16} /> : <Volume2 size={16} />}</button><div className={`cloud-state ${cloud}`} title={cloudHint}><i />{cloudLabel}</div><div className="header-manager"><div className="avatar-circle small" style={{ backgroundColor: avatarDetails[profile.avatar].color }}>{avatarDetails[profile.avatar].icon}</div><div className="header-manager-name"><span>MANAGER</span><strong>{profile.nickname || 'New Manager'}</strong></div></div><div className="header-team"><span>TEAM</span><strong>{profile.badge && <i className="club-badge" title={`${profile.badge} club badge`}>{clubMonogram(profile.badge)}</i>}{clubLabel(profile.teamName)}</strong></div><div className="coin-balance"><Coins size={16} /><div><span>COINS</span><strong>{coins.toLocaleString()}</strong></div></div><button className="logout-profile" onClick={onLogout} aria-label="Log out"><LogOut size={14} /><span>Log Out</span></button></header>;
+  return <header className="ut-header"><div className="mobile-title">CS2 <span>UT</span></div><div className="header-spacer" /><button className="sound-toggle" onClick={toggleMute} title={muted ? 'Sound off – click to unmute' : 'Sound on – click to mute'} aria-label={muted ? 'Unmute sound' : 'Mute sound'} aria-pressed={muted}>{muted ? <VolumeX size={16} /> : <Volume2 size={16} />}</button><div className={`cloud-state ${cloud}`} title={cloudHint}><i />{cloudLabel}</div><div className="header-manager"><div className="avatar-circle small" style={{ backgroundColor: avatarDetails[profile.avatar].color }}>{avatarDetails[profile.avatar].icon}</div><div className="header-manager-name"><span>MANAGER</span><strong>{profile.nickname || 'New Manager'}</strong></div></div><div className="header-team"><span>TEAM</span><strong>{profile.badge && <i className="club-badge" title={`${profile.badge} club badge`}>{clubMonogram(profile.badge)}</i>}{clubLabel(profile.teamName)}</strong></div><div className="coin-balance"><Coins size={16} /><div><span>COINS</span><strong>{coins.toLocaleString()}</strong></div></div><button className="logout-profile" onClick={onLogout} aria-label="Log out"><LogOut size={14} /><span>Log Out</span></button></header>;
 }
 
 function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSession) => void }) {
@@ -2482,7 +2482,8 @@ function ArenaPage({ userId, teamRating, chemistry, perks, league, setLeague, on
     if (!live || paused || result) return;
     const roundNumber = matchRef.current.round;
     const { sim, roundEconomy, nextScore } = simForRound(roundNumber, matchRef.current.score);
-    if (sim.usWon) playRadarRoundWin();
+    // The match-clinching 13th round gets the fanfare in finish(), not both cues.
+    if (sim.usWon && nextScore.us < 13) playRadarRoundWin();
     matchRef.current = { score: nextScore, round: roundNumber + 1 };
     const ecoUpset = (roundEconomy.ours === 'Eco' && roundEconomy.theirs === 'Full Buy' && sim.usWon)
       || (roundEconomy.theirs === 'Eco' && roundEconomy.ours === 'Full Buy' && !sim.usWon);
