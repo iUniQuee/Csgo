@@ -54,7 +54,17 @@ type ProfileRow = {
   updated_at?: string | null;
 };
 
-const PROFILE_COLUMNS = 'club_name, manager_name, avatar, level, xp, perks, coins, division, zone, owned_cards, active_squad, daily_quests, club_badge, claimed_clubs, emblem, accent, updated_at';
+const BASE_PROFILE_COLUMNS = 'club_name, manager_name, avatar, level, xp, perks, coins, division, zone, owned_cards, active_squad, daily_quests, updated_at';
+const PROFILE_COLUMNS = `${BASE_PROFILE_COLUMNS}, club_badge, claimed_clubs, emblem, accent`;
+
+/** Older installs may not have run the optional-column migration yet. */
+const isMissingOptionalColumn = (error: unknown): boolean => {
+  const candidate = error as { code?: string; message?: string; details?: string } | null;
+  const message = `${candidate?.message ?? ''} ${candidate?.details ?? ''}`;
+  return candidate?.code === 'PGRST204'
+    || candidate?.code === '42703'
+    || /could not find the '.*' column|column .* does not exist/i.test(message);
+};
 
 const number = (value: unknown, fallback = 0): number => (typeof value === 'number' && Number.isFinite(value) ? value : fallback);
 const text = (value: unknown, fallback = ''): string => (typeof value === 'string' && value.trim() ? value.trim() : fallback);
@@ -76,7 +86,12 @@ export async function loadCloudProfile(userId: string): Promise<CloudProfile | n
   const client = getSupabase();
   if (!client) return null;
   try {
-    const { data, error } = await client.from('profiles').select(PROFILE_COLUMNS).eq('id', userId).maybeSingle();
+    let result = await client.from('profiles').select(PROFILE_COLUMNS).eq('id', userId).maybeSingle();
+    if (result.error && isMissingOptionalColumn(result.error)) {
+      // Keep cloud saves working before the optional profile columns are added.
+      result = await client.from('profiles').select(BASE_PROFILE_COLUMNS).eq('id', userId).maybeSingle();
+    }
+    const { data, error } = result;
     if (error) throw error;
     if (!data) return null;
     const row = data as ProfileRow;
@@ -109,7 +124,7 @@ export async function saveCloudProfile(userId: string, snapshot: CloudProfileSav
   const client = getSupabase();
   if (!client) return false;
   try {
-    const { error } = await client.from('profiles').upsert({
+    const base = {
       id: userId,
       club_name: snapshot.clubName,
       manager_name: snapshot.managerName,
@@ -123,13 +138,21 @@ export async function saveCloudProfile(userId: string, snapshot: CloudProfileSav
       owned_cards: snapshot.ownedCards,
       active_squad: snapshot.activeSquad,
       daily_quests: snapshot.dailyQuests,
+      updated_at: new Date().toISOString(),
+    };
+    const full = {
+      ...base,
       club_badge: snapshot.clubBadge,
       claimed_clubs: snapshot.claimedClubs,
       emblem: snapshot.emblem,
       accent: snapshot.accent,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'id' });
-    if (error) throw error;
+    };
+    let result = await client.from('profiles').upsert(full, { onConflict: 'id' });
+    if (result.error && isMissingOptionalColumn(result.error)) {
+      // Older schema: save the core club and collection rather than failing every tick.
+      result = await client.from('profiles').upsert(base, { onConflict: 'id' });
+    }
+    if (result.error) throw result.error;
     return true;
   } catch (error) {
     report('[profiles] Could not save to the cloud. Did you run the SQL script?', error);
