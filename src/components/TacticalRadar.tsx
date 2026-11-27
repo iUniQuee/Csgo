@@ -309,6 +309,10 @@ type RadarState = {
   fires: Fire[];
   flashes: Flash[];
   c4: C4;
+  /** Site the surviving teams have rotated onto after the plant. */
+  postPlant: 'A' | 'B' | null;
+  /** Active defuse attempt: who is on the bomb and when it completes. */
+  defuse: { agentId: string; until: number } | null;
   fakeUsed: boolean;
   clutch: Clutch;
   event: string;
@@ -388,6 +392,8 @@ const createRadarRound = (map: RadarMap, ours: RadarDuelist[], theirs: RadarDuel
     fires: [],
     flashes: [],
     c4: null,
+    postPlant: null,
+    defuse: null,
     fakeUsed: false,
     clutch: null,
     event: 'Radar online. Vision cones active — utility and role perks enabled.',
@@ -434,6 +440,8 @@ const advanceRadar = (state: RadarState, map: RadarMap, ours: RadarDuelist[], th
   const fires = state.fires.filter((fire) => now < fire.until);
   const flashes = state.flashes.filter((flash) => now < flash.until);
   let c4 = state.c4;
+  let postPlant = state.postPlant;
+  let defuse = state.defuse;
   let event = state.event;
   let fakeUsed = state.fakeUsed;
   let clutch = state.clutch;
@@ -512,9 +520,47 @@ const advanceRadar = (state: RadarState, map: RadarMap, ours: RadarDuelist[], th
     }
   });
 
+  // Post-plant: every survivor abandons their lane and collapses onto the bomb.
+  // Terrorists take defensive positions around the site, Counter-Terrorists
+  // launch a coordinated retake from whichever route is closest to them.
+  if (c4 && postPlant !== c4.site) {
+    const site = c4.site;
+    const planted = map.sites[site];
+    postPlant = site;
+    defuse = null;
+    let tSlot = 0;
+    let ctSlot = 0;
+    agents.forEach((agent) => {
+      if (!agent.alive) return;
+      const isT = agent.side === 't';
+      const slot = isT ? tSlot++ : ctSlot++;
+      const radius = isT ? 7 : 3.2;
+      const step = isT ? 68 : 52;
+      const deg = (slot - 2) * step;
+      const goal = {
+        x: clamp(planted.x + Math.cos((deg * Math.PI) / 180) * radius, 6, 94),
+        y: clamp(planted.y + Math.sin((deg * Math.PI) / 180) * radius, 6, 94),
+      };
+      const route = (isT ? map.tRoutes : map.ctRoutes)[site];
+      let nearest = 0;
+      let nearestGap = Number.POSITIVE_INFINITY;
+      route.forEach((point, index) => {
+        const gap = distance(agent, point);
+        if (gap < nearestGap) { nearestGap = gap; nearest = index; }
+      });
+      agent.path = [{ x: agent.x, y: agent.y }, ...route.slice(Math.min(nearest + 1, route.length - 1)), goal];
+      agent.waypoint = 1;
+      agent.holding = false;
+      agent.moving = true;
+      agent.alert = null;
+      agent.baseAngle = angleTo(goal, planted);
+    });
+    event = `C4 DOWN at ${site} · all ${tSlot} Ts collapse onto the site, ${ctSlot} CTs start the retake.`;
+  }
+
   // Support sets up the execute: smoke the site, flash the defenders, molotov the anchor.
   const support = agents.find((agent) => agent.side === 't' && (agent.role === 'Support' || agent.role === 'Lurker') && agent.alive && !agent.utilityThrown);
-  if (support && support.waypoint >= support.path.length - 2) {
+  if (!c4 && support && support.waypoint >= support.path.length - 2) {
     const site = support.lane === 'B' ? 'B' : 'A';
     const sitePoint = map.sites[site];
     const holdRoute = map.ctRoutes[site];
@@ -534,7 +580,7 @@ const advanceRadar = (state: RadarState, map: RadarMap, ours: RadarDuelist[], th
   }
 
   // IGL mid-round fake: the call pulls defenders toward the wrong site.
-  if (!fakeUsed && tick === 16) {
+  if (!c4 && !fakeUsed && tick === 16) {
     const igl = agents.find((agent) => agent.side === 't' && agent.role === 'IGL' && agent.alive);
     if (igl) {
       const aCount = agents.filter((agent) => agent.side === 't' && agent.alive && agent.lane === 'A').length;
@@ -562,6 +608,35 @@ const advanceRadar = (state: RadarState, map: RadarMap, ours: RadarDuelist[], th
       }
     });
   });
+
+  // Retake execution: a CT that reaches the bomb starts the defuse; survivors
+  // of the T side hold the site around it. The radar round resolves on a
+  // completed defuse or on the C4 timer, so it can never stall post-plant.
+  if (c4) {
+    const planted = c4;
+    if (now - planted.at > 45000) {
+      event = `C4 DETONATED at ${planted.site} · the Terrorists hold the site.`;
+      return { tick, agents, markers, rings, tracers, smokes, fires, flashes, c4, postPlant, defuse: null, fakeUsed, clutch, event, respawnAt: now + 1600 };
+    }
+    if (postPlant === planted.site) {
+      const defuser = agents.find((agent) => agent.alive && agent.side === 'ct' && distance(agent, planted) < 3.6);
+      if (defuser) {
+        defuser.holding = true;
+        defuser.moving = false;
+        defuser.path = [{ x: defuser.x, y: defuser.y }];
+        defuser.waypoint = 1;
+        if (!defuse || defuse.agentId !== defuser.id) defuse = { agentId: defuser.id, until: now + 3200 };
+        const left = Math.max(0, defuse.until - now);
+        if (left <= 0) {
+          event = `C4 DEFUSED! ${defuser.name} completes the retake for the CT side.`;
+          return { tick, agents, markers, rings, tracers, smokes, fires, flashes, c4, postPlant, defuse: null, fakeUsed, clutch, event, respawnAt: now + 1600 };
+        }
+        event = `DEFUSE on ${planted.site} · ${defuser.name} on the bomb · ${(left / 1000).toFixed(1)}s left.`;
+      } else {
+        defuse = null;
+      }
+    }
+  }
 
   if (tick % 2 === 0) {
     const pairs: Array<{ ct: Agent; t: Agent; gap: number }> = [];
@@ -651,6 +726,8 @@ const advanceRadar = (state: RadarState, map: RadarMap, ours: RadarDuelist[], th
           fires,
           flashes,
           c4,
+          postPlant,
+          defuse,
           fakeUsed,
           clutch,
           event,
@@ -661,7 +738,7 @@ const advanceRadar = (state: RadarState, map: RadarMap, ours: RadarDuelist[], th
     }
   }
 
-  return { tick, agents, markers, rings, tracers, smokes, fires, flashes, c4, fakeUsed, clutch, event, respawnAt };
+  return { tick, agents, markers, rings, tracers, smokes, fires, flashes, c4, postPlant, defuse, fakeUsed, clutch, event, respawnAt };
 };
 
 export function TacticalRadar({ mapId, ours, theirs, opponentName, round, paused, speed, broadcast, economy, tactic, swapSides = false }: {
