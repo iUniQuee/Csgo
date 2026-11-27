@@ -14,6 +14,7 @@ export type ScoreboardRow = {
 };
 
 export type MatchScoreboard = {
+  opponentName: string;
   rows: ScoreboardRow[];
   mvp: ScoreboardRow;
   rounds: number;
@@ -124,5 +125,5 @@ export function buildScoreboard(
   mvp.mvp = true;
   rows.sort((a, b) => (a.team === b.team ? b.rating - a.rating : a.team === 'us' ? -1 : 1));
 
-  return { rows, mvp, rounds, score, bonus: mvp.team === 'us' ? 50 : 0 };
+  return { opponentName: opponent.name, rows, mvp, rounds, score, bonus: mvp.team === 'us' ? 50 : 0 };
 }

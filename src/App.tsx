@@ -2133,7 +2133,7 @@ function ArenaPage({ userId, teamRating, chemistry, perks, league, setLeague, on
     </>}
   </div></div> : null;
   const questPanel = <DailyQuestsPanel quests={quests} onClaim={onClaimQuest} />;
-  const scoreboardModal = scoreboard ? <PostMatchScoreboard board={scoreboard} teamName={teamName} emblem={emblem} accent={accent} opponentName={opponent.name} onClose={() => setScoreboard(null)} /> : null;
+  const scoreboardModal = scoreboard ? <PostMatchScoreboard board={scoreboard} teamName={teamName} emblem={emblem} accent={accent} opponentName={scoreboard.opponentName} onClose={() => setScoreboard(null)} /> : null;
 
   const recapModal = dayResult ? <MatchRecapModal info={{ matches: [], coins: dayResult.coins, day: dayResult }} onClose={() => setDayResult(null)} /> : null;
   const roadmap = showRoadmap ? <LeagueRoadmap current={league.division} onClose={() => setShowRoadmap(false)} onOpen={(division) => { setShowRoadmap(false); setBrowseDivision(division); }} /> : null;
