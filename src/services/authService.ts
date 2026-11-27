@@ -6,12 +6,13 @@
  * gate works immediately. Both paths expose the same small async API, so the UI
  * never needs to know which one is active.
  */
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { getSupabase, isSupabaseConfigured } from './supabase';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// The shared client owns the session, so the league and profile services can
+// write under RLS with the signed-in manager's JWT.
+const supabase = getSupabase;
 
-export const isSupabaseAuth = Boolean(SUPABASE_URL && SUPABASE_KEY);
+export const isSupabaseAuth = isSupabaseConfigured;
 
 export type AuthSession = {
   userId: string;
@@ -23,18 +24,6 @@ type LocalAccount = { userId: string; email: string; passwordHash: string; creat
 
 const ACCOUNTS_KEY = 'cs2-auth-accounts-v1';
 const SESSION_KEY = 'cs2-auth-session-v1';
-
-let client: SupabaseClient | null = null;
-
-function supabase(): SupabaseClient | null {
-  if (!isSupabaseAuth) return null;
-  if (!client) {
-    client = createClient(SUPABASE_URL as string, SUPABASE_KEY as string, {
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
-    });
-  }
-  return client;
-}
 
 function readAccounts(): Record<string, LocalAccount> {
   try {
